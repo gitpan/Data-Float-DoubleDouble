@@ -1,0 +1,10 @@
+Revision history for Perl module Data::Float::DoubleDouble
+
+0.03
+    - Alter float_H to, in list context, return (single) sign and (single) exponent, in
+      addition to the hex string and binary string it was already returning in list context.
+
+    - Add some more test files.
+
+0.01
+    - First release.

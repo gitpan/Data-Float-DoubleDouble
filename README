@@ -1,0 +1,12 @@
+This module applies specifically to the "double-double" long double arrangement - such as
+provided by the PowerPC processors.
+
+Install in the usual way:
+
+ perl Makefile.PL
+ make test
+ make install
+
+If your perl's NV (float) is not a 'double-double', the Makefile.PL should detect this
+and refuse to create a makefile - and you won't be able to build and install the
+module using that perl.
