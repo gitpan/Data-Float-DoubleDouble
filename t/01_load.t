@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-print "1..1\n";
+print "1..2\n";
 
 eval {require Data::Float::DoubleDouble;};
 
@@ -10,3 +10,11 @@ if($@) {
   print "not ok 1\n";
 }
 else {print "ok 1\n"}
+
+if($Data::Float::DoubleDouble::VERSION eq '1.02') {
+  print "ok 2\n";
+}
+else {
+  warn "version: $Data::Float::DoubleDouble::VERSION\n";
+  print "not ok 2\n";
+}

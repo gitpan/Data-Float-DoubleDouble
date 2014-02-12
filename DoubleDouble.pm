@@ -20,7 +20,7 @@ require Exporter;
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
  float_is_normal float_is_subnormal float_class)]);
 
-our $VERSION = '0.04';
+our $VERSION = '1.02';
 $VERSION = eval $VERSION;
 
 #$Data::Float::DoubleDouble::debug = 0; 

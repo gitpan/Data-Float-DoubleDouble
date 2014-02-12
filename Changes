@@ -1,5 +1,9 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.02
+    - Update version number to the correct value (1.02) ... as opposed to what
+      happened wrt 1.01.
+
 1.01
     - INCOMPATIBLE WITH EARLIER VERSIONS !!
     - Refactor, including coverage of those double-doubles whose values require more
