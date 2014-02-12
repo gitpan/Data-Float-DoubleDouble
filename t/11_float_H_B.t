@@ -6,263 +6,245 @@ use strict;
 use Math::NV qw(:all);
 use Data::Float::DoubleDouble qw(:all);
 
-my $t = 6;
+my $t = 12;
 
 print "1..$t\n";
 
-my($ok, $count) = (1, 0);
+$t = 0;
+
+my @variants = (1,2,3,4);
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-', '-') if $v == 1;
+  @curr = ('+', '-') if $v == 2;
+  @curr = ('-', '+') if $v == 3;
+  @curr = ('+', '+') if $v == 4;
+#################################
 
 for my $exp(0..10, 20, 30, 280 .. 300) {
   for my $digits(1..15) {
-    my $str = random_select($digits) . 'e' . "-$exp";
-    my $nv = Math::NV::nv($str);
+    my $str = $curr[0] . random_select($digits) . 'e' . $curr[1] . $exp;
+    my $nv = nv($str);
     #next if(!$nv || are_inf($nv));
-    my @f = float_H($nv);
-    my $hex = shift @f;
+    my @bin = get_bin($nv);
+    my $hex = float_H(@bin);
+    die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
+      unless $hex eq float_H($nv);
+
     my @check = float_H2B($hex);
-    my $check = B2float_H(@check);
 
-    if($check ne $hex) {
+    if($check[0] ne $bin[0]) {
+      $ok = 0;
       $count++;
-      warn "\n$nv\n$hex $check\n"
-       unless $count > 10;
+      warn "$str: sign: $bin[0] $check[0]\n"
+        unless $count > 10; 
     }
 
-    if($f[0] ne $check[0]) {
+    if($check[1] ne $bin[1]) {
+      $ok = 0;
       $count++;
-      warn "\n$nv\n$f[0] $check[0]\n"
-       unless $count > 10;
+      warn "$str: mant:\n$bin[1]\n$check[1]\n"
+        unless $count > 10; 
     }
 
-    if(standardise_bin_mant($f[1]) ne $check[1]) {
+    if($check[2] ne $bin[2]) {
+      $ok = 0;
       $count++;
-      warn "\n$nv\n", standardise_bin_mant($f[1]), "\n$check[1]\n"
-       unless $count > 10;
+      warn "$str: exp: $bin[2] $check[2]\n"
+        unless $count > 10; 
     }
 
-    if($f[2] ne $check[2]) {
-      $count++;
-      warn "\n$nv\n$f[2] $check[2]\n"
-       unless $count > 10;
-    }
-
-    $ok = 0 if $count;
   }
 }
 
-if($ok) {print "ok 1\n"}
-else {print "not ok 1\n"}
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
 
-($count, $ok) = (0, 1);
+#############################
+} # Close "for(@variants)" loop
+#############################
 
-for my $exp(0..10, 20, 30, 280 .. 300) {
-  for my $digits(1..15) {
-    my $str = random_select($digits) . 'e' . "$exp";
-    my $nv = Math::NV::nv($str);
-    #next if(!$nv || are_inf($nv));
-    my @f = float_H($nv);
-    my $hex = shift @f;
-    my @check = float_H2B($hex);
-    my $check = B2float_H(@check);
 
-    if($check ne $hex) {
-      $count++;
-      warn "\n$nv\n$hex $check\n"
-       unless $count > 10;
-    }
+# Finish tests 1-4
+# Begin tests 5-6
 
-    if($f[0] ne $check[0]) {
-      $count++;
-      warn "\n$nv\n$f[0] $check[0]\n"
-       unless $count > 10;
-    }
+#################################
+for my $v(1 .. 2) {
+  my($ok, $count) = (1, 0);
+  $t++;
+#################################
 
-    if(standardise_bin_mant($f[1]) ne $check[1]) {
-      $count++;
-      warn "\n$nv\n", standardise_bin_mant($f[1]), "\n$check[1]\n"
-       unless $count > 10;
-    }
-
-    if($f[2] ne $check[2]) {
-      $count++;
-      warn "\n$nv\n$f[2] $check[2]\n"
-       unless $count > 10;
-    }
-
-    $ok = 0 if $count;
-  }
-}
-
-if($ok) {print "ok 2\n"}
-else {print "not ok 2\n"}
-
-($count, $ok) = (0, 1);
-
-for my $exp(0..10, 20, 30, 280 .. 300) {
-  for my $digits(1..15) {
-    my $str = '-' . random_select($digits) . 'e' . "-$exp";
-    my $nv = Math::NV::nv($str);
-    #next if(!$nv || are_inf($nv));
-    my @f = float_H($nv);
-    my $hex = shift @f;
-    my @check = float_H2B($hex);
-    my $check = B2float_H(@check);
-
-    if($check ne $hex) {
-      $count++;
-      warn "\n$nv\n$hex $check\n"
-       unless $count > 10;
-    }
-
-    if($f[0] ne $check[0]) {
-      $count++;
-      warn "\n$nv\n$f[0] $check[0]\n"
-       unless $count > 10;
-    }
-
-    if(standardise_bin_mant($f[1]) ne $check[1]) {
-      $count++;
-      warn "\n$nv\n", standardise_bin_mant($f[1]), "\n$check[1]\n"
-       unless $count > 10;
-    }
-
-    if($f[2] ne $check[2]) {
-      $count++;
-      warn "\n$nv\n$f[2] $check[2]\n"
-       unless $count > 10;
-    }
-
-    $ok = 0 if $count;
-  }
-}
-
-if($ok) {print "ok 3\n"}
-else {print "not ok 3\n"}
-
-($count, $ok) = (0, 1);
-
-for my $exp(0..10, 20, 30, 280 .. 300) {
-  for my $digits(1..15) {
-    my $str = '-' . random_select($digits) . 'e' . "$exp";
-    my $nv = Math::NV::nv($str);
-    #next if(!$nv || are_inf($nv));
-    my @f = float_H($nv);
-    my $hex = shift @f;
-    my @check = float_H2B($hex);
-    my $check = B2float_H(@check);
-
-    if($check ne $hex) {
-      $count++;
-      warn "\n$nv\n$hex $check\n"
-       unless $count > 10;
-    }
-
-    if($f[0] ne $check[0]) {
-      $count++;
-      warn "\n$nv\n$f[0] $check[0]\n"
-       unless $count > 10;
-    }
-
-    if(standardise_bin_mant($f[1]) ne $check[1]) {
-      $count++;
-      warn "\n$nv\n", standardise_bin_mant($f[1]), "\n$check[1]\n"
-       unless $count > 10;
-    }
-
-    if($f[2] ne $check[2]) {
-      $count++;
-      warn "\n$nv\n$f[2] $check[2]\n"
-       unless $count > 10;
-    }
-
-    $ok = 0 if $count;
-  }
-}
-
-if($ok) {print "ok 4\n"}
-else {print "not ok 4\n"}
-
-($ok, $count) = (1, 0);
 
 for my $exp(298 .. 304) {
   my $str = '0.0000000009' . "e-$exp";
-  my $nv = Math::NV::nv($str);
+  my $nv = nv($str);
+  $nv *= -1.0 if $v == 2;
   #next if(!$nv || are_inf($nv));
-  my @f = float_H($nv);
-  my $hex = shift @f;
+  my @bin = get_bin($nv);
+  my $hex = float_H(@bin);
+  die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
+    unless $hex eq float_H($nv);
+
   my @check = float_H2B($hex);
-  my $check = B2float_H(@check);
 
-  if($check ne $hex) {
+  if($check[0] ne $bin[0]) {
+    $ok = 0;
     $count++;
-    warn "\n$nv\n$hex $check\n"
-     unless $count > 10;
+    warn "$str: sign: $bin[0] $check[0]\n"
+      unless $count > 10; 
   }
 
-  if($f[0] ne $check[0]) {
+  if($check[1] ne $bin[1]) {
+    $ok = 0;
     $count++;
-    warn "\n$nv\n$f[0] $check[0]\n"
-     unless $count > 10;
+    warn "$str: mant:\n$bin[1]\n$check[1]\n"
+      unless $count > 10; 
   }
 
-  if(standardise_bin_mant($f[1]) ne $check[1]) {
+  if($check[2] ne $bin[2]) {
+    $ok = 0;
     $count++;
-    warn "\n$nv\n", standardise_bin_mant($f[1]), "\n$check[1]\n"
-     unless $count > 10;
+    warn "$str: exp: $bin[2] $check[2]\n"
+      unless $count > 10; 
   }
 
-  if($f[2] ne $check[2]) {
-    $count++;
-    warn "\n$nv\n$f[2] $check[2]\n"
-     unless $count > 10;
-  }
-
-  $ok = 0 if $count;
 }
 
-if($ok) {print "ok 5\n"}
-else {print "not ok 5\n"}
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
 
-($ok, $count) = (1, 0);
+#############################
+} # Close "for (1 .. 2)" loop
+#############################
+
+# Finish tests 5-6
+
+##############################
+##############################
+# Now do the same, but don't
+# assign using nv()
+##############################
+##############################
+
+# Begin tests 7-10
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-', '-') if $v == 1;
+  @curr = ('+', '-') if $v == 2;
+  @curr = ('-', '+') if $v == 3;
+  @curr = ('+', '+') if $v == 4;
+#################################
+
+for my $exp(0..10, 20, 30, 280 .. 300) {
+  for my $digits(1..15) {
+    my $str = $curr[0] . random_select($digits) . 'e' . $curr[1] . $exp;
+    my $nv = $str + 0.0;
+    #next if(!$nv || are_inf($nv));
+    my @bin = get_bin($nv);
+    my $hex = float_H(@bin);
+    die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
+      unless $hex eq float_H($nv);
+
+    my @check = float_H2B($hex);
+
+    if($check[0] ne $bin[0]) {
+      $ok = 0;
+      $count++;
+      warn "$str: sign: $bin[0] $check[0]\n"
+        unless $count > 10; 
+    }
+
+    if($check[1] ne $bin[1]) {
+      $ok = 0;
+      $count++;
+      warn "$str: mant:\n$bin[1]\n$check[1]\n"
+        unless $count > 10; 
+    }
+
+    if($check[2] ne $bin[2]) {
+      $ok = 0;
+      $count++;
+      warn "$str: exp: $bin[2] $check[2]\n"
+        unless $count > 10; 
+    }
+
+  }
+}
+
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Finish tests 7-10
+# Begin tests 11-12
+
+#################################
+for my $v(1 .. 2) {
+  my($ok, $count) = (1, 0);
+  $t++;
+#################################
+
 
 for my $exp(298 .. 304) {
-  my $str = '-' . '0.0000000009' . "e-$exp";
-  my $nv = Math::NV::nv($str);
+  my $str = '0.0000000009' . "e-$exp";
+  my $nv = $str + 0.0;
+  $nv *= -1.0 if $v == 2;
   #next if(!$nv || are_inf($nv));
-  my @f = float_H($nv);
-  my $hex = shift @f;
+  my @bin = get_bin($nv);
+  my $hex = float_H(@bin);
+  die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
+    unless $hex eq float_H($nv);
+
   my @check = float_H2B($hex);
-  my $check = B2float_H(@check);
 
-  if($check ne $hex) {
+  if($check[0] ne $bin[0]) {
+    $ok = 0;
     $count++;
-    warn "\n$nv\n$hex $check\n"
-     unless $count > 10;
+    warn "$str: sign: $bin[0] $check[0]\n"
+      unless $count > 10; 
   }
 
-  if($f[0] ne $check[0]) {
+  if($check[1] ne $bin[1]) {
+    $ok = 0;
     $count++;
-    warn "\n$nv\n$f[0] $check[0]\n"
-     unless $count > 10;
+    warn "$str: mant:\n$bin[1]\n$check[1]\n"
+      unless $count > 10; 
   }
 
-  if(standardise_bin_mant($f[1]) ne $check[1]) {
+  if($check[2] ne $bin[2]) {
+    $ok = 0;
     $count++;
-    warn "\n$nv\n", standardise_bin_mant($f[1]), "\n$check[1]\n"
-     unless $count > 10;
+    warn "$str: exp: $bin[2] $check[2]\n"
+      unless $count > 10; 
   }
 
-  if($f[2] ne $check[2]) {
-    $count++;
-    warn "\n$nv\n$f[2] $check[2]\n"
-     unless $count > 10;
-  }
-
-  $ok = 0 if $count;
 }
 
-if($ok) {print "ok 6\n"}
-else {print "not ok 6\n"}
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for (1 .. 2)" loop
+#############################
+
+#print float_H(scalar nv('602744e-4')), "\n";
+#print float_H(602744e-4), "\n";
+#print float_H((2 ** 1023) + (2 ** -1074)), "\n";
+#print float_H((2 ** 1023) + (2 ** -1070)), "\n";
+#print float_H((2 ** 1023) - (2 ** -1074)), "\n";
+#print float_H((2 ** 1023) - (2 ** -1070)), "\n";
 
 ##############################
 ##############################

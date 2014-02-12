@@ -1,10 +1,4 @@
-# Because we pass a string to Math::MPFR, we can't use a precision of 106
-# Instead we need to use the effective precision of the long double, which
-# can be less than 106 when the second double is de-normalised.
-# When we pass the actual long double (as in 07_nv2mpfr_cross_checks.t),
-# we *can* set the precision to 106 throughout.
-# When the *first* double is de-normalised, we need to call the align() sub.
-
+# Check get_bin() output against the mpfr library.
 use warnings;
 use strict;
 use Math::NV qw(:all);
@@ -12,11 +6,9 @@ use Math::NV qw(:all);
 
 use Data::Float::DoubleDouble qw(:all);
 
-# If $ARGV[0] is "debug", extra info is supplied re tests 1 & 2 (-ve exponents) only.
-# If $ARGV[0] is "DEBUG", extra info is supplied re all 4 tests.
-$Data::Float::DoubleDouble::debug = 1 if(defined($ARGV[0]) && $ARGV[0] =~ /debug/i);
+#$Data::Float::DoubleDouble::debug = 1 if(defined($ARGV[0]) && $ARGV[0] =~ /debug/i);
 
-my $t = 6;
+my $t = 24;
 
 print "1..$t\n";
 
@@ -28,195 +20,663 @@ if($@) {
   exit 0;
 }
 
+Math::MPFR::Rmpfr_set_default_prec(2100);
+my $rnd = 0; # Math::MPFR's round to nearest
 
-my($ok, $count) = (1, 0);
+$t = 0;
 
-for my $exp(0..10, 20, 30, 280 .. 300) {
-  for my $digits(1..15) {
-    my $str = random_select($digits) . 'e' . "-$exp";
-    my $ref = populate($str);
-    die "Check failed for $str" unless $ref->{check};
+my @variants = (1,2,3,4);
 
-    Math::MPFR::Rmpfr_set_default_prec(length($ref->{bin})); # $ref->{bin} is not always 106 binary characters long
-    my $fr = Math::MPFR->new($str);
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-', '-') if $v == 1;
+  @curr = ('+', '-') if $v == 2;
+  @curr = ('-', '+') if $v == 3;
+  @curr = ('+', '+') if $v == 4;
+#################################
 
-    my @out = Math::MPFR::Rmpfr_deref2($fr, 2, length($ref->{bin}), 0); 
-    $out[0] =~ s/^\-//;
-
-  $out[0] = align($out[0], $ref->{bin}); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
-
-    if($ref->{bin} ne $out[0]) {
-      $count++;
-      $ok = 0;
-      warn "$str\n$ref->{bin}\n$out[0]\n\n"
-        unless $count > 10;
-    }      
-  }
-}
-
-if($ok) {print "ok 1\n"}
-else {print "not ok 1\n"}
-
-($ok, $count) = (1, 0);
+  
 
 for my $exp(0..10, 20, 30, 280 .. 300) {
   for my $digits(1..15) {
-    my $str = '-' . random_select($digits) . 'e' . "-$exp";
-    my $ref = populate($str);
-    die "Check failed for $str" unless $ref->{check};
+    my $str = $curr[0] . random_select($digits) . 'e' . $curr[1] . "$exp";
+    my $nv = nv($str);
+    my $fr = Math::MPFR->new($nv);
 
-    Math::MPFR::Rmpfr_set_default_prec(length($ref->{bin})); # $ref->{bin} is not always 106 binary characters long
-    my $fr = Math::MPFR->new($str);
+    next if are_inf($nv);
+    my ($sign, $mant, $exp) = get_bin($nv);
+    my $fr_sign;
+    my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
 
-    my @out = Math::MPFR::Rmpfr_deref2($fr, 2, length($ref->{bin}), 0);
-    $out[0] =~ s/^\-//;
+    my $nv_redone2 = Math::MPFR::Rmpfr_get_ld($fr, $rnd);
 
-  $out[0] = align($out[0], $ref->{bin}); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
 
-    if($ref->{bin} ne $out[0]) {
-      $count++;
+
+    if($nv_redone1 != $nv_redone2) {
+       unless(are_nan($nv_redone1, $nv_redone2)) {
+         warn "\nRmpfr_get_NV() and Rmpfr_get_ld() don't match\n",
+              "  ", NV2H($nv_redone1), " versus ", NV2H($nv_redone2), "\n";
+         die;
+       }
+    }
+
+    if($nv != $nv_redone2) {
+       unless(are_nan($nv, $nv_redone1, $nv_redone2)) {
+         warn "\nNV mismatch:\n",
+              "  ", NV2H($nv), " vs ", NV2H($nv_redone1), " vs ", NV2H($nv_redone2), "\n";
+         die;
+       }
+    }
+
+    my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd);
+
+    if($out[0] =~ /^\-/) {
+      $fr_sign = '-';
+      $out[0] =~ s/^\-//;
+    }
+    else {
+      $fr_sign = '+';
+      $out[0] =~ s/^\+//;
+    }
+
+    if($fr_sign ne $sign) {
+      warn "\n$t: $str sign mismatch: $sign $fr_sign" unless $count > 10;
       $ok = 0;
-      warn "$str\n$ref->{bin}\n$out[0]\n\n"
-        unless $count > 10;
-    }      
-  }
-}
-
-if($ok) {print "ok 2\n"}
-else {print "not ok 2\n"}
-
-# Turn off debug for the +ve exponent tests *unless* $ARGV[0] eq 'DEBUG'
-if($Data::Float::DoubleDouble::debug) {
-  unless($ARGV[0] eq 'DEBUG') {
-    warn "Turning off \$debug for +ve exponents\n";
-    $Data::Float::DoubleDouble::debug = 0;
-  }
-}
-
-($ok, $count) = (1, 0);
-
-for my $exp(0..10, 20, 30, 280 .. 300) {
-  for my $digits(1..15) {
-    my $str = random_select($digits) . "e$exp";
-    my $ref = populate($str);
-    die "Check failed for $str" unless $ref->{check};
-
-    Math::MPFR::Rmpfr_set_default_prec(length($ref->{bin})); # $ref->{bin} is not always 106 binary characters long
-    my $fr = Math::MPFR->new($str);
-
-    my @out = Math::MPFR::Rmpfr_deref2($fr, 2, length($ref->{bin}), 0);
-    $out[0] =~ s/^\-//;
-
-  $out[0] = align($out[0], $ref->{bin}); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
-
-    align($ref->{bin}, $out[0]); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
-
-    if(($ref->{bin} ne $out[0]) && !are_inf($ref->{val})) {
       $count++;
+    }
+
+    # Number of trailing zeroes may differ, so remove them from both $mant and $out[0]
+    # for comparison purposes.
+    my $len = length($mant);
+    $mant =~ s/0+$//;
+    $mant = '0' if(!length($mant) && $len);
+    $len = length($out[0]);
+    $out[0] =~ s/0+$//;
+    $out[0] = '0' if(!length($out[0]) && $len);
+
+    # M::MPFR and D::F::DD position the implied radix point differently
+    # (off by one), so we need to cater for that when comparing results.
+    $out[1]--;
+
+    # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
+    #if($exp > $out[1]) {
+    #  $out[0] =substr($out[0], $exp - $out[1]);
+    #  $out[1] = $exp;
+    #}
+
+    if($mant ne $out[0]) {
+      warn "\n$t: $str\n mant mismatch: $mant $out[0]" unless $count > 10;
       $ok = 0;
-      warn "$str\n$ref->{bin}\n$out[0]\n\n"
-        unless $count > 10;
-    }      
-  }
-}
-
-if($ok) {print "ok 3\n"}
-else {print "not ok 3\n"}
-
-($ok, $count) = (1, 0);
-
-for my $exp(0..10, 20, 30, 280 .. 300) {
-  for my $digits(1..15) {
-    my $str = '-' . random_select($digits) . "e$exp";
-    my $ref = populate($str);
-    die "Check failed for $str" unless $ref->{check};
-
-    Math::MPFR::Rmpfr_set_default_prec(length($ref->{bin})); # $ref->{bin} is not always 106 binary characters long
-    my $fr = Math::MPFR->new($str);
-
-    my @out = Math::MPFR::Rmpfr_deref2($fr, 2, length($ref->{bin}), 0);
-    $out[0] =~ s/^\-//;
-
-  $out[0] = align($out[0], $ref->{bin}); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
-
-    if(($ref->{bin} ne $out[0]) && !are_inf($ref->{val})) {
       $count++;
-      $ok = 0;
-      warn "$str\n$ref->{bin}\n$out[0]\n\n"
-        unless $count > 10;
-    }      
+    }
+
+    if($exp ne $out[1]) {
+      if($nv) {
+        warn "\n$t: $str exp mismatch: $exp $out[1]\n" unless $count > 10;
+        $ok = 0;
+      }
+    }
   }
 }
 
-if($ok) {print "ok 4\n"}
-else {print "not ok 4\n"}
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
 
-($ok, $count) = (1, 0);
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Finish tests 1-4
+# Start tests  5-8
+
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-', '-') if $v == 1;
+  @curr = ('+', '-') if $v == 2;
+  @curr = ('-', '+') if $v == 3;
+  @curr = ('+', '+') if $v == 4;
+#################################
 
 for my $exp(298 .. 304) {
-  my $str = '-0.0000000009' . "e-$exp";
-  my $ref = populate($str);
-  die "Check failed for $str" unless $ref->{check};
+  my $str =  $curr[0] . '0.0000000009' . 'e' . $curr[1] . $exp;
+  my $nv = nv($str);
+  my ($sign, $mant, $exp) = get_bin($nv);
+  my $fr_sign;
 
-  Math::MPFR::Rmpfr_set_default_prec(length($ref->{bin})); # $ref->{bin} is not always 106 binary characters long
-  my $fr = Math::MPFR->new($str);
+  my $fr = Math::MPFR->new($nv);
 
-  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, length($ref->{bin}), 0);
-  $out[0] =~ s/^\-//;
+  my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
+  my $nv_redone2 = Math::MPFR::Rmpfr_get_ld($fr, $rnd);
 
-  $out[0] = align($out[0], $ref->{bin}); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
+  if($nv_redone1 != $nv_redone2) {
+     unless(are_nan($nv_redone1, $nv_redone2)) {
+       warn "\nRmpfr_get_NV() and Rmpfr_get_ld() don't match\n",
+            "  ", NV2H($nv_redone1), " versus ", NV2H($nv_redone2), "\n";
+       die;
+     }
+  }
 
-  if(($ref->{bin} ne $out[0]) && !are_inf($ref->{val})) {
-    $count++;
+  if($nv != $nv_redone2) {
+     unless(are_nan($nv, $nv_redone1, $nv_redone2)) {
+       warn "\nNV mismatch:\n",
+            "  ", NV2H($nv), " vs ", NV2H($nv_redone1), " vs ", NV2H($nv_redone2), "\n";
+       die;
+     }
+  }
+
+  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd); 
+    if($out[0] =~ /^\-/) {
+    $fr_sign = '-';
+    $out[0] =~ s/^\-//;
+  }
+  else {
+    $fr_sign = '+';
+    $out[0] =~ s/^\+//;
+  }
+
+  if($fr_sign ne $sign) {
+    warn "\n $t: sign mismatch: $sign $fr_sign" unless $count > 10;
     $ok = 0;
-    warn "$str\n$ref->{bin}\n$out[0]\n\n"
-      unless $count > 10;
-  }      
-}
-
-if($ok) {print "ok 5\n"}
-else {print "not ok 5\n"}
-
-($ok, $count) = (1, 0);
-
-for my $exp(298 .. 304) {
-  my $str = '-0.0000000009' . "e-$exp";
-  my $ref = populate($str);
-  die "Check failed for $str" unless $ref->{check};
-
-  Math::MPFR::Rmpfr_set_default_prec(length($ref->{bin})); # $ref->{bin} is not always 106 binary characters long
-  my $fr = Math::MPFR->new($str);
-
-  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, length($ref->{bin}), 0);
-  $out[0] =~ s/^\-//;
-
-  $out[0] = align($out[0], $ref->{bin}); # No-op iff $ref->{bin} does not begin with '0' (ie if first double is not denormalised.)
-
-  if(($ref->{bin} ne $out[0]) && !are_inf($ref->{val})) {
     $count++;
+  }
+
+  # Number of trailing zeroes may differ, so remove them from both $mant and $out[0]
+  # for comparison purposes.
+  my $len = length($mant);
+  $mant =~ s/0+$//;
+  $mant = '0' if(!length($mant) && $len);
+  $len = length($out[0]);
+  $out[0] =~ s/0+$//;
+  $out[0] = '0' if(!length($out[0]) && $len);
+
+  # M::MPFR and D::F::DD position the implied radix point differently
+  # (off by one), so we need to cater for that when comparing results.
+  # But we need to apply a different adjustment, depending upon whether 
+  # the most siginifcant NV is de-normalised or not.
+  if($exp =~ /^1/) {
+    $out[1]--;
+  }
+  else {
+    my $zeroes = $exp - $out[1] + 1;
+    $out[0] = ('0' x $zeroes) . $out[0];
+    $out[1] = $exp;
+  }
+ 
+  # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
+  #if($exp > $out[1]) {
+  #  warn "\n$str\n\$exp: $exp \$out[1]: $out[1]\n";
+  #  $out[0] =substr($out[0], $exp - $out[1]);
+  #  $out[1] = $exp;
+  #}
+
+  if($mant ne $out[0]) {
+    warn "\n$t: $str mant mismatch:\n$mant\n$out[0]" unless $count > 10;
     $ok = 0;
-    warn "$str\n$ref->{bin}\n$out[0]\n\n"
-      unless $count > 10;
-  }      
+    $count++;
+  }
+
+  if($exp ne $out[1]) {
+    if($nv) {
+      warn "\n$t: exp mismatch: $exp $out[1]\n" unless $count > 10;
+      $ok = 0;
+    }
+  }    
 }
 
-if($ok) {print "ok 6\n"}
-else {print "not ok 6\n"}
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
 
-sub populate {
+#############################
+} # Close "for(@variants)" loop
+#############################
 
-  my $val = Math::NV::nv($_[0]);
-  my $hex = NV2H($val);
-  my @f = float_H($val);
-  my $check = H2NV($hex);
 
-  $check = $check == $val || are_nan($check, $val) ? 1 : 0;
+# Finish test 5-8
+# Start tests 9-12.
 
-  my %h = ('val' => $val, 'unpack' => $hex, 'hex' => $f[0], 'bin' => $f[2], 'check' => $check);
 
-  return \%h;
-}
+my($nv1, $nv2, $nv3, $nv4) = (2 ** 1023, 2 ** 1000, 2 ** - 1074, 2 ** -1054);
 
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 + ($nv1 * $curr[0])) + ($nv4 + ($nv3 * $curr[1]));
+
+  my ($sign, $mant, $exp) = get_bin($nv);
+  my $fr_sign;
+
+  my $fr = Math::MPFR->new($nv);
+
+  # MPFR doesn't reproduce the original value.
+  #my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
+  #my $nv_redone2 = Math::MPFR::Rmpfr_get_ld($fr, $rnd);
+  #
+  #if($nv_redone1 != $nv_redone2) {
+  #   unless(are_nan($nv_redone1, $nv_redone2)) {
+  #     warn "\nRmpfr_get_NV() and Rmpfr_get_ld() don't match\n",
+  #          "  ", NV2H($nv_redone1), " versus ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+  #
+  #if($nv != $nv_redone2) {
+  #   unless(are_nan($nv, $nv_redone1, $nv_redone2)) {
+  #     warn "\nNV mismatch: $curr[0] $curr[1]\n",
+  #          "  ", NV2H($nv), " vs ", NV2H($nv_redone1), " vs ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+
+  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd); 
+    if($out[0] =~ /^\-/) {
+    $fr_sign = '-';
+    $out[0] =~ s/^\-//;
+  }
+  else {
+    $fr_sign = '+';
+    $out[0] =~ s/^\+//;
+  }
+
+  if($fr_sign ne $sign) {
+    warn "\n $t: sign mismatch: $sign $fr_sign" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  # Number of trailing zeroes may differ, so remove them from both $mant and $out[0]
+  # for comparison purposes.
+  my $len = length($mant);
+  $mant =~ s/0+$//;
+  $mant = '0' if(!length($mant) && $len);
+  $len = length($out[0]);
+  $out[0] =~ s/0+$//;
+  $out[0] = '0' if(!length($out[0]) && $len);
+
+  # M::MPFR and D::F::DD position the implied radix point differently
+  # (off by one), so we need to cater for that when comparing results.
+  # But we need to apply a different adjustment, depending upon whether 
+  # the most siginifcant NV is de-normalised or not.
+  if($exp =~ /^1/) {
+    $out[1]--;
+  }
+  else {
+    my $zeroes = $exp - $out[1] + 1;
+    $out[0] = ('0' x $zeroes) . $out[0];
+    $out[1] = $exp;
+  }
+ 
+  # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
+  #if($exp > $out[1]) {
+  #  warn "\n$str\n\$exp: $exp \$out[1]: $out[1]\n";
+  #  $out[0] =substr($out[0], $exp - $out[1]);
+  #  $out[1] = $exp;
+  #}
+
+  if($mant ne $out[0]) {
+    warn "\n$t: $nv mant mismatch:\n$mant\n$out[0]" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  if($exp ne $out[1]) {
+    if($nv) {
+      warn "\n$t: exp mismatch: $exp $out[1]\n" unless $count > 10;
+      $ok = 0;
+    }
+  }
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Finish tests 9-12
+# Start tests 13-16.
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 + ($nv1 * $curr[0])) - ($nv4 + ($nv3 * $curr[1]));
+
+  my ($sign, $mant, $exp) = get_bin($nv);
+  my $fr_sign;
+
+  my $fr = Math::MPFR->new($nv);
+
+  # MPFR doesn't reproduce the original value.
+  #my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
+  #my $nv_redone2 = Math::MPFR::Rmpfr_get_ld($fr, $rnd);
+  #
+  #if($nv_redone1 != $nv_redone2) {
+  #   unless(are_nan($nv_redone1, $nv_redone2)) {
+  #     warn "\nRmpfr_get_NV() and Rmpfr_get_ld() don't match\n",
+  #          "  ", NV2H($nv_redone1), " versus ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+  #
+  #if($nv != $nv_redone2) {
+  #   unless(are_nan($nv, $nv_redone1, $nv_redone2)) {
+  #     warn "\nNV mismatch: $curr[0] $curr[1]\n",
+  #          "  ", NV2H($nv), " vs ", NV2H($nv_redone1), " vs ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+
+  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd); 
+    if($out[0] =~ /^\-/) {
+    $fr_sign = '-';
+    $out[0] =~ s/^\-//;
+  }
+  else {
+    $fr_sign = '+';
+    $out[0] =~ s/^\+//;
+  }
+
+  if($fr_sign ne $sign) {
+    warn "\n $t: sign mismatch: $sign $fr_sign" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  # Number of trailing zeroes may differ, so remove them from both $mant and $out[0]
+  # for comparison purposes.
+  my $len = length($mant);
+  $mant =~ s/0+$//;
+  $mant = '0' if(!length($mant) && $len);
+  $len = length($out[0]);
+  $out[0] =~ s/0+$//;
+  $out[0] = '0' if(!length($out[0]) && $len);
+
+  # M::MPFR and D::F::DD position the implied radix point differently
+  # (off by one), so we need to cater for that when comparing results.
+  # But we need to apply a different adjustment, depending upon whether 
+  # the most siginifcant NV is de-normalised or not.
+  if($exp =~ /^1/) {
+    $out[1]--;
+  }
+  else {
+    my $zeroes = $exp - $out[1] + 1;
+    $out[0] = ('0' x $zeroes) . $out[0];
+    $out[1] = $exp;
+  }
+ 
+  # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
+  #if($exp > $out[1]) {
+  #  warn "\n$str\n\$exp: $exp \$out[1]: $out[1]\n";
+  #  $out[0] =substr($out[0], $exp - $out[1]);
+  #  $out[1] = $exp;
+  #}
+
+  if($mant ne $out[0]) {
+    warn "\n$t: $nv mant mismatch:\n$mant\n$out[0]" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  if($exp ne $out[1]) {
+    if($nv) {
+      warn "\n$t: exp mismatch: $exp $out[1]\n" unless $count > 10;
+      $ok = 0;
+    }
+  }
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Finish tests 13-16
+# Start tests 17-20
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv1 * $curr[0]) + ($nv3 * $curr[1]);
+
+  my ($sign, $mant, $exp) = get_bin($nv);
+  my $fr_sign;
+
+  my $fr = Math::MPFR->new($nv);
+
+  # MPFR doesn't reproduce the original value.
+  #my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
+  #my $nv_redone2 = Math::MPFR::Rmpfr_get_ld($fr, $rnd);
+  #
+  #if($nv_redone1 != $nv_redone2) {
+  #   unless(are_nan($nv_redone1, $nv_redone2)) {
+  #     warn "\nRmpfr_get_NV() and Rmpfr_get_ld() don't match\n",
+  #          "  ", NV2H($nv_redone1), " versus ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+  #
+  #if($nv != $nv_redone2) {
+  #   unless(are_nan($nv, $nv_redone1, $nv_redone2)) {
+  #     warn "\nNV mismatch: $curr[0] $curr[1]\n",
+  #          "  ", NV2H($nv), " vs ", NV2H($nv_redone1), " vs ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+
+  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd);
+    #if($t == 18 || $t == 19) {
+    #  print "\n$sign $exp\n$mant\n$out[0]\n$out[1]\n";
+    #} 
+    if($out[0] =~ /^\-/) {
+    $fr_sign = '-';
+    $out[0] =~ s/^\-//;
+  }
+  else {
+    $fr_sign = '+';
+    $out[0] =~ s/^\+//;
+  }
+
+  if($fr_sign ne $sign) {
+    warn "\n $t: sign mismatch: $sign $fr_sign" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  # Number of trailing zeroes may differ, so remove them from both $mant and $out[0]
+  # for comparison purposes.
+  my $len = length($mant);
+  $mant =~ s/0+$//;
+  $mant = '0' if(!length($mant) && $len);
+  $len = length($out[0]);
+  $out[0] =~ s/0+$//;
+  $out[0] = '0' if(!length($out[0]) && $len);
+
+  # M::MPFR and D::F::DD position the implied radix point differently
+  # (off by one), so we need to cater for that when comparing results.
+  # But we need to apply a different adjustment, depending upon whether 
+  # the most siginifcant NV is de-normalised or not.
+  if($exp =~ /^1/) {
+    $out[1]--;
+  }
+  else {
+    my $zeroes = $exp - $out[1] + 1;
+    $out[0] = ('0' x $zeroes) . $out[0];
+    $out[1] = $exp;
+  }
+ 
+  # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
+  #if($exp > $out[1]) {
+  #  warn "\n$str\n\$exp: $exp \$out[1]: $out[1]\n";
+  #  $out[0] =substr($out[0], $exp - $out[1]);
+  #  $out[1] = $exp;
+  #}
+
+  if($mant ne $out[0]) {
+    warn "\n$t: $nv mant mismatch:\n$mant\n$out[0]" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  if($exp ne $out[1]) {
+    if($nv) {
+      warn "\n$t: exp mismatch: $exp $out[1]\n" unless $count > 10;
+      $ok = 0;
+    }
+  }
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Finish tests 17-20
+# Start tests 21-24
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 * $curr[0]) + ($nv4 * $curr[1]);
+
+  my ($sign, $mant, $exp) = get_bin($nv);
+  my $fr_sign;
+
+  my $fr = Math::MPFR->new($nv);
+
+  # MPFR doesn't reproduce the original value.
+  #my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
+  #my $nv_redone2 = Math::MPFR::Rmpfr_get_ld($fr, $rnd);
+  #
+  #if($nv_redone1 != $nv_redone2) {
+  #   unless(are_nan($nv_redone1, $nv_redone2)) {
+  #     warn "\nRmpfr_get_NV() and Rmpfr_get_ld() don't match\n",
+  #          "  ", NV2H($nv_redone1), " versus ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+  #
+  #if($nv != $nv_redone2) {
+  #   unless(are_nan($nv, $nv_redone1, $nv_redone2)) {
+  #     warn "\nNV mismatch: $curr[0] $curr[1]\n",
+  #          "  ", NV2H($nv), " vs ", NV2H($nv_redone1), " vs ", NV2H($nv_redone2), "\n";
+  #     die;
+  #   }
+  #}
+
+  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd);
+    #if($t == 22 || $t == 23) {
+    #  print "\n$sign $exp\n$mant\n$out[0]\n$out[1]\n";
+    #} 
+    if($out[0] =~ /^\-/) {
+    $fr_sign = '-';
+    $out[0] =~ s/^\-//;
+  }
+  else {
+    $fr_sign = '+';
+    $out[0] =~ s/^\+//;
+  }
+
+  if($fr_sign ne $sign) {
+    warn "\n $t: sign mismatch: $sign $fr_sign" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  # Number of trailing zeroes may differ, so remove them from both $mant and $out[0]
+  # for comparison purposes.
+  my $len = length($mant);
+  $mant =~ s/0+$//;
+  $mant = '0' if(!length($mant) && $len);
+  $len = length($out[0]);
+  $out[0] =~ s/0+$//;
+  $out[0] = '0' if(!length($out[0]) && $len);
+
+  # M::MPFR and D::F::DD position the implied radix point differently
+  # (off by one), so we need to cater for that when comparing results.
+  # But we need to apply a different adjustment, depending upon whether 
+  # the most siginifcant NV is de-normalised or not.
+  if($exp =~ /^1/) {
+    $out[1]--;
+  }
+  else {
+    my $zeroes = $exp - $out[1] + 1;
+    $out[0] = ('0' x $zeroes) . $out[0];
+    $out[1] = $exp;
+  }
+ 
+  # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
+  #if($exp > $out[1]) {
+  #  warn "\n$str\n\$exp: $exp \$out[1]: $out[1]\n";
+  #  $out[0] =substr($out[0], $exp - $out[1]);
+  #  $out[1] = $exp;
+  #}
+
+  if($mant ne $out[0]) {
+    warn "\n$t: $nv mant mismatch:\n$mant\n$out[0]" unless $count > 10;
+    $ok = 0;
+    $count++;
+  }
+
+  if($exp ne $out[1]) {
+    if($nv) {
+      warn "\n$t: exp mismatch: $exp $out[1]\n" unless $count > 10;
+      $ok = 0;
+    }
+  }
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Finish tests 21-24
 
 sub random_select {
   my $ret = '';
@@ -225,23 +685,6 @@ sub random_select {
   }
   return $ret;
 }
-
-
-sub align {
-  my $zero_count = 0;
-  my $ret = $_[0]; # $out[0]
-  my $len = length($_[1]); # $ref->{bin}
-
-  while(substr($_[1], $zero_count, 1) eq '0') {
-    $zero_count++;
-  }
-
-  $ret = '0' x $zero_count . $ret;
-
-  return (Data::Float::DoubleDouble::_trunc_rnd($ret, $len))[0];
-}
-
-
 
 __END__
 

@@ -10,17 +10,28 @@ require Exporter;
 
 @Data::Float::DoubleDouble::EXPORT_OK = qw(NV2H H2NV D2H H2D get_sign
  get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
- float_H2B B2float_H standardise_bin_mant hex_float float_hex);
+ float_H2B B2float_H standardise_bin_mant hex_float float_hex get_bin
+ float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
+ float_is_normal float_is_subnormal float_class);
 
 %Data::Float::DoubleDouble::EXPORT_TAGS = (all =>[qw(NV2H H2NV D2H H2D
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
- float_H2B B2float_H standardise_bin_mant float_hex hex_float)]);
+ float_H2B B2float_H standardise_bin_mant float_hex hex_float get_bin
+ float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
+ float_is_normal float_is_subnormal float_class)]);
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 $VERSION = eval $VERSION;
 
-$Data::Float::DoubleDouble::debug = 0;
-$Data::Float::DoubleDouble::pack = $Config{nvtype} eq 'double' ? "F<" : "D<";
+#$Data::Float::DoubleDouble::debug = 0; 
+#$Data::Float::DoubleDouble::pack = $Config{nvtype} eq 'double' ? "F<" : "D<";
+
+### NOTE ###
+# The biggest representable power of 2 in a double is 2 **  1023  ('1' followed by '0' x 1023)
+# The least representable power of 2 in a double is   2 **  -1074 ('1' preceded by '0' x 1073)
+# The double-double is capable of exactly encapsulating the sum of those 2 values
+# Binary representation is '1' . '0' x 2096 . '1', with implied radix point after the 1023rd '0'.
+# inter_zero() for such a number returns 1992, which is 2096 - (2 * 52).
 
 ##############################
 ##############################
@@ -28,7 +39,7 @@ $Data::Float::DoubleDouble::pack = $Config{nvtype} eq 'double' ? "F<" : "D<";
 
 sub NV2H {
 
-  return scalar reverse unpack "h*", pack $Data::Float::DoubleDouble::pack, $_[0];
+  return scalar reverse unpack "h*", pack "D<", $_[0];
 
 }
 
@@ -38,7 +49,7 @@ sub NV2H {
 
 sub H2NV {
 
-  return unpack $Data::Float::DoubleDouble::pack, pack "h*", scalar reverse $_[0];
+  return unpack "D<", pack "h*", scalar reverse $_[0];
 
 }
 
@@ -109,11 +120,27 @@ sub get_mant_H {
 
 ##############################
 ##############################
-# Return a hex string representation as per perl Data::Float
+# Return a 3-element list for the given double-double:
+# 1) sign
+# 2) mantissa (in binary, implicit radix point after first digit)
+# 3) exponent
+# For nan/inf, the mantissa is 'nan' or 'inf' respectively.
 
-sub float_H {
-
+sub get_bin {
   my $hex = NV2H($_[0]);
+
+  if($hex eq '7ff00000000000000000000000000000') { # +inf
+    return ('+', 'inf', 1024);
+  }
+  if($hex eq 'fff00000000000000000000000000000') { # -inf
+    return ('-', 'inf', 1024);
+  }
+  if($hex eq '7ff80000000000000000000000000000') { # + nan
+    return ('+', 'nan', 1024);
+  }
+  if($hex eq 'fff80000000000008000000000000000') { # - nan
+    return ('-', 'nan', 1024);
+  }
 
   my $pre1 = hex(substr($hex, 0, 3));
   my $pre2 = hex(substr($hex, 16, 3));
@@ -144,7 +171,6 @@ sub float_H {
 
   my $bin_str1 = unpack("B52", (pack "H*", $s1));
   my $bin_str2 = unpack("B52", (pack "H*", $s2));
-  my $bin = 'Not yet evaluated';
 
   my $sign_compare;
 
@@ -153,16 +179,8 @@ sub float_H {
   $sign2 = $sign1 if ($bin_str2 !~ /1/ && !$pre2);
   $sign1 = $sign2 if ($bin_str1 !~ /1/ && !$pre1);
 
-  if($sign1 eq  $sign2) {
-    $sign_compare = $sign1 eq '-' ? 'nn' : 'pp';
-  }
-  else {
-    $sign_compare = $sign1 eq '-' ? 'np' : 'pn';
-  }
-
   my $bin_pre1 = $pre1 ? '1' : '0';
 
-  $sign1 .= $pre1 ? '0x1.' : '0x0.';
   $pre1++ unless $pre1;
 
   my $bin_pre2 = $pre2 ? '1' : '0';
@@ -178,34 +196,75 @@ sub float_H {
     $bin_str2 = substr($bin_str2, $inter_zero * -1);   
   }
 
-  if($sign_compare eq 'nn' || $sign_compare eq 'pp') {
+  my($bin, $pow_adjust);
+
+  if($sign1 eq $sign2) {
+    $pow_adjust = 0;
     $bin = $bin_pre1 . $bin_str1 . $zeroes . $bin_pre2 . $bin_str2;
-    $bin = substr($bin, 0, 106);
   }
   else {
-    $bin = _subtract_p($bin_pre1 . $bin_str1, $zeroes . $bin_pre2 . $bin_str2); 
-    $bin = substr($bin, 0, 106);
+    ($bin, $pow_adjust) = _subtract_p($bin_pre1 . $bin_str1, $zeroes . $bin_pre2 . $bin_str2); 
   }
 
-  my $ret2 = $bin;
+  my $single_exp = $pre1 - 1023 - $pow_adjust;
 
-  my $suffix = $pre1 - 1023;
+  $bin =~ s/0+$//; # Remove trailing zeroes
+  $bin .= '0' while length($bin) < 108; # Make sure the mantissa of $hex is always at least 108 bits.
+  $bin .= '0' while length($bin) % 4;
 
-  $suffix = $suffix > 0 ? '+' . "$suffix"
-                        : "$suffix";
-
-  my $single_exp = $suffix;
-
-  $suffix = 'p' . $suffix;
-
-  $bin .= '0' while length($bin) < 108; # Make sure the mantissa of $hex is always of the correct length.
-  return ($sign1 . _bin2hex(substr($bin, 1, 108)) . $suffix, $single_sign, $ret2, $single_exp) if wantarray;
-  return $sign1 . _bin2hex(substr($bin, 1, 108)) . $suffix;
+  return($single_sign, $bin, $single_exp);
 
 }
 
 ##############################
 ##############################
+
+##############################
+##############################
+# Return a hex string representation as per perl Data::Float
+# For NaN and Inf returns 'nan' or 'inf' (prefixed with either
+# '+' or '-' as appropriate).
+
+sub float_H {
+  my ($sign, $mant, $exp);
+  if(@_ == 1)    {($sign, $mant, $exp) = get_bin($_[0])}
+  elsif(@_ == 3) {($sign, $mant, $exp) = ($_[0], $_[1], $_[2])}
+  else { die "Expected either 1 or 3 args to float_H() - received ", scalar @_}
+
+  if($mant eq 'nan') {
+    $sign eq '-' ? return '-nan'
+                 : return '+nan'; 
+  }
+  if($mant eq 'inf') {
+    $sign eq '-' ? return '-inf'
+                 : return '+inf';
+  }
+
+  my $mant_len = length $mant;
+
+  # Mantissa returned by get_bin is at least 108 bits
+  die "Mantissa calculated by float_H() is too short ($mant_len)"
+    if $mant_len < 108;
+
+  # Length of mantissa returned by get_bin() is always
+  # evenly divisible by 4
+  die "Mantissa calculated by float_H() is not divisible by 4 ($mant_len)"
+    if $mant_len % 4;
+
+  my $prefix = $sign . '0x' . substr($mant, 0, 1, '') . '.';
+
+ 
+  $mant .= '0' while length($mant) % 4;
+
+  #my $H_items = length($mant) / 4;
+  #my $middle = unpack "H$H_items", pack "B*", $mant;
+
+  my $middle = _bin2hex($mant);
+
+  my $suffix = "p$exp";
+
+  return $prefix . $middle . $suffix;
+}
 
 ##############################
 ##############################
@@ -213,43 +272,53 @@ sub float_H {
 
 sub H_float {
 
-  my @bin = float_H2B($_[0]);
+  if($_[0] eq '+inf') {return H2NV('7ff00000000000000000000000000000')} # +inf
+  if($_[0] eq '-inf') {return H2NV('fff00000000000000000000000000000')} # -inf
+  if($_[0] eq '+nan') {return H2NV('7ff80000000000000000000000000000')} # + nan
+  if($_[0] eq '-nan') {return H2NV('fff80000000000008000000000000000')} # - nan
 
-  standardise_bin_mant($bin[1]); # Set $bin[1] to 109 bits. (Last 3 bits will always be 0.)
+  my($sign, $mant, $exp) = float_H2B($_[0]);
+  my $overflow = 0;
+  my $overflow_exp = $exp + 1;
 
-  my $d2_bin_mant = substr($bin[1], 53);
-  my($d1, $roundup) = _bin2d(@bin, 1);
+  my ($d1_bin, $roundup) = _trunc_rnd($mant, 53);
 
-
-  if(!$roundup) { # Calculate $d2, concatenate it onto $d1.
-    my @bin_d2 = ($bin[0], $d2_bin_mant, $bin[2] - 54);
-
-    my($d2, $discard) = _bin2d(@bin_d2, 2);
-
-    return H2NV($d1 . $d2);
+  if(!$roundup) {
+    my $s = $sign eq '-' ? -1.0 : 1.0;
+    my @d = _calculate($mant, $exp);
+    if($d[0] == 0 && $sign eq '-') {
+      return H2NV('80000000000000000000000000000000');
+    }
+    return $d[0] * $s;
   }
   else {
-    my $overflow = 0;
-    my $subtract_from = (_trunc_rnd($bin[1], 53))[0] . '0' x 56;
-    while(length($subtract_from) > 109) { # Still needed - to satisfy _subtract_b().
-                                          # (Strings must be of same length.)
-      chop $subtract_from;
-      $overflow++;
-      warn "In H_float: overflow is greater than 1" if $overflow > 1;
+    my $s = $sign eq '-' ? -1.0 : 1.0;
+    my $binlen = length $mant;
+
+    if(length($d1_bin) == 54) { # overflow when doing _trunc_rnd()
+      $overflow = 1;
+      $mant = '0' . $mant;
+      $exp++;
     }
-    my $mant = _subtract_b($subtract_from, $bin[1]);
 
-    $mant = substr($mant, 53, 53);
+    my $subtract_from = $d1_bin . '0' x ($binlen - 53);
+    #warn "\n$binlen ", length($d1_bin), " ", length($subtract_from), "\n";
 
-    my $sign = $bin[0] eq '-' ? '+' : '-';
-    my $exp = $bin[2] - 54;
+    my $m = _subtract_b($subtract_from, $mant);
+
+    $m = substr($m, 53) unless $overflow;
 
     # decrement exponent if $d1 ends in 12 zeroes && $bin[1] begins with 53 zeroes
-    $exp -- if($d1 =~ /0000000000000$/ && $bin[1] =~ /^11111111111111111111111111111111111111111111111111111/);
+    #$exp -- if($d1_bin =~ /0000000000000$/ && $mant =~ /^11111111111111111111111111111111111111111111111111111/);
 
-    my ($d2, $discard) = _bin2d($sign, $mant, $exp, 2);
+    my ($d1, $exponent) = _calculate($d1_bin, $exp);
+    $exponent = $overflow_exp if $overflow;
+    my ($d2, $discard) = _calculate($m, $exponent);
 
-    return H2NV($d1 . $d2);
+    if($d1 - $d2 == 0 && $sign eq '-') {
+      return H2NV('80000000000000000000000000000000');
+    }
+    return ($d1 - $d2) * $s;
   }
 }
 
@@ -257,8 +326,22 @@ sub H_float {
 ##############################
 # Convert the hex format returned by float_H to binary.
 # An array of 3 elements is returned - sign, mantissa, exponent.
+# For nan/inf the mantissa is set to 'nan' or 'inf' respectively.
 
 sub float_H2B {
+
+  if($_[0] eq '+inf') {
+    return ('+', 'inf', 1024);
+  }
+  if($_[0] eq '-inf') {
+    return ('-', 'inf', 1024);
+  }
+  if($_[0] eq '+nan') {
+    return ('+', 'nan', 1024);
+  }
+  if($_[0] eq '- nan') {
+    return ('-', 'nan', 1024);
+  }
 
   my $sign = $_[0] =~ /^\-/ ? '-' : '+';
   my @split = split /p/, $_[0];
@@ -266,10 +349,12 @@ sub float_H2B {
   my $lead = substr($_[0], 3, 1);
   die "Wrong leading digit" unless $lead =~ /[01]/;
   my $hex = (split /\./, $split[0])[1];
-  die "Wrong number of hex chars" unless length($hex) == 27;
+  die "Wrong number of hex chars" unless length($hex) >= 27;
   my $bin = $lead . _hex2bin($hex);
+  $bin =~ s/0$//;
   return ($sign, $bin, $exp);
 }
+
 
 ##############################
 ##############################
@@ -282,6 +367,15 @@ sub B2float_H {
   my $mant = shift;
   my $exp = shift;
 
+  if($mant eq 'inf') {
+    $sign eq '-' ? return '-inf'
+                 : return '+inf';
+  }
+  if($mant eq 'nan') {
+    $sign eq '-' ? return '-nan'
+                 : return '+nan';
+  }
+
   my $lead = substr($mant, 0, 1, '');
 
   $mant = _bin2hex($mant);
@@ -291,17 +385,6 @@ sub B2float_H {
 
 ##############################
 ##############################
-# Takes 1 arg - the binary mantissa (including the implied leading digit).
-# Aim is to standardise the binary mantissa to 109 bits by adding trailing 0 bits.
-# The binary mantissa that float_H returns (in list context) is NOT standardised.
-# It aims to match the mantissa that mpfr returns.
-# The binary mantissa that float_H2B returns should already be standardised.
-
-sub standardise_bin_mant {
-  my $bin = shift;
-  $bin .= '0' while length($bin) < 109;
-  return $bin;
-}
 
 ##############################
 ##############################
@@ -321,11 +404,12 @@ sub inter_zero {
 
 ##############################
 ##############################
+# Return true iff the argument is infinite.
 
 sub are_inf {
 
   for(@_) {
-    if($_ == 0 || $_ / $_ == 1) {
+    if($_ == 0 || $_ / $_ == 1 || $_ != $_) {
       return 0;
     } 
   }
@@ -336,6 +420,7 @@ sub are_inf {
 
 ##############################
 ##############################
+# Return true iff the argument is a NaN.
 
 sub are_nan {
 
@@ -387,10 +472,12 @@ sub _subtract_b {
     return $ret;    
 
 }
+
 ##############################
 ##############################
 # Binary-subtract the second arg from the first arg.
-# This sub written specifically for float_H().
+# This sub written specifically for get_bin() the output of which,
+# is, in turn, needed for float_H().
 
 sub _subtract_p {
 
@@ -428,51 +515,97 @@ sub _subtract_p {
 
 
     if($overflow && $ret =~ /^01111111111111111111111111111111111111111111111111111/) {
-      return substr($ret, 1);
+      return (substr($ret, 1), 1);
     }
 
-    return $ret;    
+    return ($ret, 0);    
 
 }
 
 ##############################
 ##############################
-# Increment a 53-bit binary string.
+# Convert a binary string to a hex string.
+
+sub _bin2hex {
+  my $len = length($_[0]);
+  die "Wrong length ($len) supplied to _bin2hex()"
+    if $len % 4;
+  $len /=  4;
+  return unpack "H$len", pack "B*", $_[0];
+}
+
+##############################
+##############################
+# Convert a hex string to a binary string.
+
+sub _hex2bin {
+  my $H_len = length($_[0]);
+  my $B_len = $H_len * 4;
+  return unpack "B$B_len", pack "H$H_len", $_[0];
+  #return unpack "B*", pack "H*", $_[0];
+}
+
+##############################
+##############################
+# Calculate the value of the double-double using the
+# base 2 representation. (Used by H_float.)
+
+sub _calculate {
+    my $bin = $_[0];
+    my $exp = $_[1];
+    my $ret = 0;
+
+    my $binlen = length($bin);
+    $binlen--;
+
+    for my $pos(0 .. $binlen) {
+      $ret += substr($bin, $pos, 1) ? 2 ** $exp : 0;
+      $exp--;
+    }
+
+    return ($ret, $exp);
+}
+
+##############################
+##############################
+# Increment a binary string.
+# Length of returned string will be either $len or $len+1 
 
 sub _add_1 {
   my $mant = shift;
+  my $len = length $mant;
   my $ret = '';
 
   my $carry = 0;
 
-  for(my $i = -1; $i >= -53; $i--) {
+  for(my $i = -1; $i >= -$len; $i--) {
     my $top = substr($mant, $i, 1);
     my $bottom = $i == -1 ? 1 : 0;
     my $sum = $top + $bottom + $carry;
 
-    $ret = $sum % 2 . $ret;
+    $ret = ($sum % 2) . $ret;
 
     $carry = $sum >= 2 ? 1 : 0;
   }
 
   $ret = '1' . $ret if $carry;
 
-  return $ret;
+  return $ret; 
 }
 
 ##############################
 ##############################
-
-
-
-##############################
-##############################
+# Normally, the 2 args that this function receives will be:
+#  1) The base 2 representation (including the implied leading 0 or 1)
+#     of the double-double we're working with;
+#  2) The length to which we wish to truncate the string of bits (usually 53).
+#
 # Set a binary string to a specified no. of bits, rounding to nearest (ties
 # to even) if the string needs to be truncated ... which it possibly does.
 # Returns a list - first element is the truncated/rounded string, second
 # element is 'true' iff rounding up occurred, else second element is false.
-# This function is a key to determining the value of the first double, from
-# the full 106-bit binary representation of the mantissa.
+# This function is a key to determining the value of the double-double's
+# two doubles, from the entire binary representation of the mantissa.
 
 sub _trunc_rnd {
 
@@ -499,194 +632,52 @@ sub _trunc_rnd {
   }
 
   if(substr($first, -1, 1) eq '0') {return ($first, 0)}
-  return (Data::Float::DoubleDouble::_add_1($first), 1);
+  return (_add_1($first), 1);
 }
 
 ##############################
 ##############################
-
-sub _bin2hex {
-  return unpack "H27", pack "B*", $_[0];
-}
-
-##############################
-##############################
-
-sub _hex2bin {
-  return unpack "B108", pack "H27", $_[0];
-}
-
-##############################
-##############################
-# Take a double-double in binary form as a list of 3 args (sign, mantissa, exponent).
-# If the 4th arg is 1', return the value of the first double (in the same format as
-# provided by NV2H).
-# For the case where 4th arg is '1' return a second value of either 0 (meaning that
-# the first value was *not* rounded away from zero, or 1 (meaning that the first value
-# *was* rounded away from zero).
-# If the 4th arg is '2' return the value of the second double (in the same format as
-# provided by NV2H).
-# For the case where 4th arg is '2', the second returned value is not in any way
-# useful or relevant - so we simply return undef.
-# The function dies if 4th arg is neither '1' nor '2'.
-
-sub _bin2d {
-
-  die "4th arg to _bin2d() needs to be either '1' or '2'"
-    if($_[3] != 2 && $_[3] != 1);
-
-  my @ret;
-
-  if($_[3] == 1) { 
-    @ret = _bin2d_1(@_);
-  }
-  else {
-    @ret = _bin2d_2(@_);
-  }
-
-  return @ret;
-
-}
-
-###############################
-###############################
-# Given the sign, the exponent, and the 53-bit mantissa of the 1st double,
-# return the double as a hex dump (in the same format as provided by D2H).
-
-sub _bin2d_1 {
-
-  die "4th arg to _bin2d_1() needs to be '1'"
-    if $_[3] != 1;
-
-  my $sign = shift;
-  my $m = shift;
-  my $exp = shift;
-  my $which = shift;
-  
-  my $pre = $exp + 1023;
-
-  my($mant, $roundup);
-
-  ($mant, $roundup) = _trunc_rnd($m, 53);
-
-  if($mant !~ /1/) {
-    $sign eq '-' ? return '8' . ('0' x15)
-                 : return '0' x 16;
-  }
-
-  if($mant =~ /^0/ && $mant =~ /1/) {
-    $pre--;
-    warn "$sign\n$mant\n$exp\nExpected prefix to be zero - got $pre" if $pre;
-  }
-
-  $pre += 2048 if $sign eq '-';
-
-  my $bin_mant = substr($mant, 1, 52);
-
-  my $hex_mant = unpack "H13", pack "B52", $bin_mant;
-
-  $pre = sprintf "%x", $pre;
-  while(length($pre) < 3) {$pre = '0' . $pre}
-
-  my $ret = $pre . $hex_mant;
-  my $len = length($ret);
-
-  die "$pre\n$sign\n$mant\n$exp\n_bin2d_1() wants to return a ${len}-length string: $ret"
-    unless $len == 16;
-
-  return ($ret, $roundup);
-}
-
-###############################
-###############################
-# Given the sign, the exponent, and the 53-bit mantissa of the 2nd double,
-# return the double as a hex dump (in the same format as provided by D2H).
-
-sub _bin2d_2 {
-
-  die "4th arg to _bin2d_2() needs to be '2'"
-    if $_[3] != 2;
-
-  my $sign = shift;
-  my $m = shift;
-  my $exp = shift;
-  my $which = shift;
-  my $den = 0;
-  my $adjust = 1;
-
-  my $shift = 0;
-  while(substr($m, $shift, 1) eq '0') {
-    $shift++;
-  }
-
-  if($exp - $shift < -1022) {
-    $den = 1;
-    $adjust = -1023 - ($exp - $shift);
-
-    if($adjust > $shift) {
-      $den = 2;
-      $adjust -= $shift;
-      $m = ('0' x $adjust) . $m;
-      $m = substr($m, 0, 53);
-    }
-
-    $exp = -1022;
-  }
-
-  my $pre = $exp + 1023;
-
-  my $mant = $m;
-
-  if($mant !~ /1/) {
-    $sign eq '-' ? return '8' . ('0' x15)
-                 : return '0' x 16;
-  }
-
-  if($den) {
-    $pre-- if $adjust;
-  }
-  else {
-    $mant .= '0' x $shift;
-    $pre -= $shift - 1;
-    $mant = substr($mant, $shift, 53);    
-  }
-
-  $pre += 2048 if $sign eq '-';
-
-  my $bin_mant;
-
-  if(!$den && $exp == -1022) {
-    $bin_mant = substr($mant, 0, 52);
-  }
-  elsif($den == 1) {
-    $bin_mant = substr($mant, $shift - $adjust + 1, 52);
-  }
-  else {
-    $bin_mant = substr($mant, 1, 52);
-  }
-  my $hex_mant = unpack "H13", pack "B52", $bin_mant;
-
-  $pre = sprintf "%x", $pre;
-  while(length($pre) < 3) {$pre = '0' . $pre}
-
-  my $ret = $pre . $hex_mant;
-
-  return ($ret, undef);
-}
-
-###############################
-###############################
-
-###############################
-###############################
-
-###############################
-###############################
 
 # For compatibility with Data::Float:
 
+sub float_class {
+  return "NAN" if float_is_nan($_[0]);
+  return "INFINITE" if float_is_infinite($_[0]);
+  return "ZERO" if $_[0] == 0;
+  return "SUBNORMAL" if float_is_subnormal($_[0]);
+  return "NORMAL" if float_is_normal($_[0]);
+  die "Cannot determine class of float";
+}
+
+sub float_is_finite {
+  !are_inf($_[0]) && !are_nan($_[0]) ? return 1
+                                     : return 0;
+}
+
+sub float_is_zero {
+  return 1 if $_[0] == 0;
+  return 0;
+}
+
+sub float_is_nzfinite {
+  return 1 if (float_is_finite($_[0]) && $_[0] != 0);
+  return 0;
+}
+
+sub float_is_normal {
+  return 1 if(float_is_nzfinite($_[0]) && float_hex($_[0]) =~ /1\./);
+  return 0;
+}
+
+sub float_is_subnormal {
+  return 1 if(float_is_nzfinite($_[0]) && float_hex($_[0]) =~ /0\./);
+  return 0;
+}
+
 *float_hex = \&float_H;
 *hex_float = \&H_float;
+*float_is_infinite = \&are_inf;
+*float_is_nan = \&are_nan;
 
 1;
 
@@ -699,10 +690,14 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
 
 =head1 AIM
 
+  Mostly, one would use Data::Float to do what this module does.
+  But that module doesn't work with the powerpc long double,
+  which uses a 'double-double' arrangement ... hence, this module.
+
   Given a double-double value, we aim to be able to:
-   1) Convert that double to its internal packed hex form;
+   1) Convert that NV to its internal packed hex form;
    2) Convert the packed hex form of 1) back to the original value;
-   3) Convert that double to a more readable 106-bit packed hex form,
+   3) Convert that NV to a more human-readable packed hex form,
       similar to what Data::Float's float_hex function achieves;
    4) Convert the packed hex form of 3) back to the original value;
 
@@ -711,26 +706,13 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
    For 3) we use float_H().
    For 4) we use H_float().
 
-   NOTE: If data is lost when float_H converts to the 106-bit form
-         then H_float() cannot return the exact original value.
-         (See example/caveats.p in the source.) 
-         TODO: Alter float_H() so that it does not lose data. This
-         would mean that it presents up to 2047-bit values (as
-         needed - depending upon what the actual given value is).
-         Such a change would then mean that H_float() can return
-         the original value for all NV's. It would also mean that
-         the string returned by float_H() is not necessarily so
-         "human-friendly" after all, as it could consist of up to
-         519 characters.
-        
-
 
 =head1 FUNCTIONS
 
   #############################################
   $hex = NV2H($nv);
 
-   Returns a representation of the NV as a string of 32 hex characters.
+   Unpacks the NV to a string of 32 hex characters.
    The first 16 characters relate to the value of the most significant
    double:
     Characters 1 to 3 (incl) embody the sign of the mantissa, the value 
@@ -745,37 +727,28 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
     Characters 20 to 32 (incl) embody the value of the 52-bit mantissa.
 
    For a more human-readable hex representation, use float_H().
-  #############################################   
-
   #############################################
   $nv = H2NV($hex);
 
    For $hex written in the format returned by NV2H, H2NV($hex)
    returns the NV.
   #############################################
-
-  #############################################
   $hex = D2H($nv);
 
    Treats the NV as a double and returns a string of 16 hex characters.
-   Characters 1 to 3 (incl) embody the sign of the mantissa and the 
-   value of the exponent.
+   Characters 1 to 3 (incl) embody the sign of the mantissa, the value
+   (0 or 1) of the implied leading bit and the value of the exponent.
    Characters 4 to 16 (incl) embody the value of the 52-bit mantissa
    of the first double.
-  #############################################
-   
   #############################################
   $nv = H2D($hex);
 
    For $hex written in the format returned by D2H, H2D($hex) returns
    the NV.
-  #############################################    
-
   #############################################
-  $readable_hex = float_H($nv);
-  ($readable_hex, $mant_bin, $sign, $exp_bin) = float_H($nv);
+  $readable_hex = float_H($nv); # Aliased to float_hex
 
-   In scalar context returns a 106-bit hex representation of the NV
+   For *most* NVs, returns a 106-bit hex representation of the NV
    (long double) $nv in the format
    s0xd.hhhhhhhhhhhhhhhhhhhhhhhhhhhpe where:
     s is the sign (either '-' or '+')
@@ -790,44 +763,65 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
 
    The keen mind will have realised that 27 hex digits encode 108
    (not 105) bits. However, the last 3 bits are to be ignored and
-   will always be zero. Thus the 27th hex character will either be
-   "8" (representing a "1") or "0" (representing a "0") for the
-   106th bit.
+   will always be zero for a 106-bit float. Thus the 27th hex
+   character for a 106-bit float will either be "8" (representing
+   a "1") or "0" (representing a "0") for the 106th bit.
 
-   In list context, returns an additional 3 elements:
-    1) the sign of the NV;
-    2) a binary string representation of the NV with an *implicit*
-       decimal point between the first and second (leftmost) digits;
-    3) the exponent (as a base 10 count of the base 2 places).
-  #############################################    
+   BUT: Some NV values encapsulate a value that require more than
+        106 bits in order to be correctly represented.
+        If the string that float_H returns is larger than as
+        described above, then it will, however,  have returned a
+        string that contains the *minimum* number of characters
+        needed to accurately represent the given value.
+        As an extreme example: the double-double arrangement can
+        represent the value 2**1023 + 2**-1074, but to express
+        that value as a stream of bits requires 2098 bits, and to
+        express that value in the format that float_H returns
+        requires 526 hex characters (all of which are zero, except
+        for the first and the last). When you add the sign, radix
+        point, exponent, etc., the float_H representation of that
+        value consists of 535 characters.
 
   #############################################
   $nv = H_float($hex);
 
    For $hex written in the format returned by float_H(), returns
    the NV that corresponds to $hex.
-  #############################################    
+  #############################################  
+  @bin = get_bin($nv);
 
+   Returns the sign, the mantissa (as a base 2 string), and the
+   exponent of $nv. (There's an implied radix point between the
+   first and second digits of the mantissa).
   #############################################
-  @signs = get_sign($nv);
+  @bin = float_H2B($hex);
+
+   As for the above get_bin() function - but takes the hex
+   string of the NV (as returned by float_H) as its argument,
+   instead of the actual NV.
+   For a more direct way of obtaining the array, use get_bin
+   instead.
+  #############################################
+  $hex = B2float_H(@bin);
+
+   The reverse of float_H2B. It takes the array returned by
+   either get_bin or float_H2B as its arguments, and returns
+   the corresponding hex form.
+  #############################################
+  ($sign1, $sign2) = get_sign($nv);
 
    Returns the signs of the two doubles contained in $nv.
   #############################################
-
-  #############################################
-  @exps = get_exp($nv);
+  ($exp1, $exp2) = get_exp($nv);
 
    Returns the exponents of the two doubles contained in $nv.
   #############################################
+  ($mantissa1, $mantissa2) = get_mant_H(NV2H($nv));
 
-  #############################################
-  @mantissas = get_mant_H(NV2H($nv));
-
-   Returns an array of the two 52-bit mantissa components of the two
-   doubles in their hex form. The value of the implied leading (most
-   significant) bit is not provided. 
-  #############################################
-
+   Returns an array of the two 52-bit mantissa components of
+   the two doubles in their hex form. The values of the
+   implied leading (most significant) bits are not provided,
+   nor are the values of the two exponents. 
   #############################################
   $intermediate_zeroes = inter_zero(get_exp($nv));
 
@@ -835,20 +829,67 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
    mantissas of the 2 doubles when $nv is translated to the
    representation that float_H() returns.
   #############################################
-
-  #############################################
-  $bool = are_inf(@nv);
+  $bool = are_inf(@nv); # Aliased to float_is_infinite.
 
    Returns true if and only if all of the (NV) arguments are
    infinities.
    Else returns false.
   #############################################
+  $bool = are_nan(@nv); # Aliased to float_is_nan.
+
+   Returns true if and only if all of the (NV) arguments are
+   NaNs. Else returns false.
+  #############################################
+
+  For Compatibility with Data::Float:
 
   #############################################
-  $bool = are_nan(@nv);
+  $class = float_class($nv);
 
-   Returns true if and only if all of the (NV) arguments are NaNs.
+   Returns one of either "NAN", "INFINITE", "ZERO", "NORMAL"
+   or "SUBNORMAL" - whichever is appropriate. (The NV must
+   belong to one (and only one) class.
+  #############################################
+  $bool = float_is_nan($nv); # Alias for are_nan()
+
+   Returns true if $nv is a NaN.
+   Else returns false. 
+  #############################################
+  $bool = float_is_infinite($nv); # Alias for are_inf()
+
+   Returns true if $nv is infinite.
    Else returns false.
+  #############################################
+  $bool = float_is_finite($nv);
+
+   Returns true if NV is neither infinite nor a NaN.
+   Else returns false.
+  #############################################
+  $bool = float_is_nzfinite($nv);
+
+   Returns true if NV is neither infinite, nor a NaN, nor zero.
+   Else returns false.
+  #############################################
+  $bool = float_is_zero($nv);
+
+   Returns true if NV is zero.
+   Else returns false.
+  #############################################
+  $bool = float_is_normal($nv);
+
+   Returns true if NV is finite && non-zero && the implied
+   leading digit in its internal representation is '1'.
+   Else returns false.
+  #############################################
+  $bool = float_is_subnormal($nv);
+
+   Returns true if NV is finite && non-zero && the implied
+   leading digit in its internal representation is '0'.
+  #############################################
+
+  #############################################
+  #############################################
+  #############################################
   #############################################
 
 =head1 TODO

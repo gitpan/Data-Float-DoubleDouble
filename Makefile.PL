@@ -11,7 +11,7 @@ if($Config::Config{nvtype} ne 'long double') {
 } 
 
 my $nv1 = 1.0;
-my $nv2 = $nv1 + (2 ** -200);
+my $nv2 = $nv1 + (2 ** -1000);
 
 if($nv1 == $nv2) {
   warn "  This module is not usable with this architecture's long double\n",

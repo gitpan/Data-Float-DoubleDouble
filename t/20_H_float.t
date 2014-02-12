@@ -19,8 +19,9 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
 
     my @bin = float_H2B($hex);
 
-    my($d, $roundup) = Data::Float::DoubleDouble::_bin2d(@bin, 1);
-    next if $roundup;
+    unless($bin[1] =~ /inf|nan/) {
+      next if (Data::Float::DoubleDouble::_trunc_rnd($bin[1], 53))[1];
+    }
 
     $done++;
 
@@ -37,16 +38,6 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
-
-      # Not a failure iff the second double is zero && the only difference is the sign of that zero.
-      if((
-          (substr($h, 16, 16) eq '8000000000000000' &&  substr($h_redone, 16, 16) eq '0000000000000000')
-         ||
-          (substr($h_redone, 16, 16) eq '8000000000000000' &&  substr($h, 16, 16) eq '0000000000000000')
-         )
-         &&
-          (substr($h, 0, 16) eq substr($h_redone, 0, 16))
-        ) {next}
 
       $count++;
       $ok = 0;
@@ -62,7 +53,7 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
 if($ok) {print "ok 1\n"}
 else {print "not ok 1\n"}
 
-warn "DONE: $done\n";
+warn "\nDONE: $done\n";
 ($ok, $count, $done) = (1, 0, 0);
 
 for my $exp(0..10, 20, 30, 280 .. 300) {
@@ -73,8 +64,9 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
 
     my @bin = float_H2B($hex);
 
-    my($d, $roundup) = Data::Float::DoubleDouble::_bin2d(@bin, 1);
-    next if $roundup;
+    unless($bin[1] =~ /inf|nan/) {
+      next if (Data::Float::DoubleDouble::_trunc_rnd($bin[1], 53))[1];
+    }
 
     $done++;
 
@@ -91,16 +83,6 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
-
-      # Not a failure iff the second double is zero && the only difference is the sign of that zero.
-      if((
-          (substr($h, 16, 16) eq '8000000000000000' &&  substr($h_redone, 16, 16) eq '0000000000000000')
-         ||
-          (substr($h_redone, 16, 16) eq '8000000000000000' &&  substr($h, 16, 16) eq '0000000000000000')
-         )
-         &&
-          (substr($h, 0, 16) eq substr($h_redone, 0, 16))
-        ) {next}
 
       $count++;
       $ok = 0;
@@ -127,8 +109,9 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
 
     my @bin = float_H2B($hex);
 
-    my($d, $roundup) = Data::Float::DoubleDouble::_bin2d(@bin, 1);
-    next if $roundup;
+    unless($bin[1] =~ /inf|nan/) {
+      next if (Data::Float::DoubleDouble::_trunc_rnd($bin[1], 53))[1];
+    }
 
     $done++;
 
@@ -145,16 +128,6 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
-
-      # Not a failure iff the second double is zero && the only difference is the sign of that zero.
-      if((
-          (substr($h, 16, 16) eq '8000000000000000' &&  substr($h_redone, 16, 16) eq '0000000000000000')
-         ||
-          (substr($h_redone, 16, 16) eq '8000000000000000' &&  substr($h, 16, 16) eq '0000000000000000')
-         )
-         &&
-          (substr($h, 0, 16) eq substr($h_redone, 0, 16))
-        ) {next}
 
       $count++;
       $ok = 0;
@@ -181,8 +154,9 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
 
     my @bin = float_H2B($hex);
 
-    my($d, $roundup) = Data::Float::DoubleDouble::_bin2d(@bin, 1);
-    next if $roundup;
+    unless($bin[1] =~ /inf|nan/) {
+      next if (Data::Float::DoubleDouble::_trunc_rnd($bin[1], 53))[1];
+    }
 
     $done++;
 
@@ -199,16 +173,6 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
-
-      # Not a failure iff the second double is zero && the only difference is the sign of that zero.
-      if((
-          (substr($h, 16, 16) eq '8000000000000000' &&  substr($h_redone, 16, 16) eq '0000000000000000')
-         ||
-          (substr($h_redone, 16, 16) eq '8000000000000000' &&  substr($h, 16, 16) eq '0000000000000000')
-         )
-         &&
-          (substr($h, 0, 16) eq substr($h_redone, 0, 16))
-        ) {next}
 
       $count++;
       $ok = 0;
@@ -234,8 +198,9 @@ for my $exp(298 .. 304) {
 
   my @bin = float_H2B($hex);
 
-  my($d, $roundup) = Data::Float::DoubleDouble::_bin2d(@bin, 1);
-  next if $roundup;
+  unless($bin[1] =~ /inf|nan/) {
+    next if (Data::Float::DoubleDouble::_trunc_rnd($bin[1], 53))[1];
+  }
 
   $done++;
 
@@ -252,16 +217,6 @@ for my $exp(298 .. 304) {
   my $h_redone = NV2H($nv_redone);
 
   if($h_redone ne $h) {
-
-    # Not a failure iff the second double is zero && the only difference is the sign of that zero.
-    if((
-        (substr($h, 16, 16) eq '8000000000000000' &&  substr($h_redone, 16, 16) eq '0000000000000000')
-       ||
-        (substr($h_redone, 16, 16) eq '8000000000000000' &&  substr($h, 16, 16) eq '0000000000000000')
-       )
-       &&
-        (substr($h, 0, 16) eq substr($h_redone, 0, 16))
-      ) {next}
 
     $count++;
     $ok = 0;
@@ -286,8 +241,9 @@ for my $exp(298 .. 304) {
 
   my @bin = float_H2B($hex);
 
-  my($d, $roundup) = Data::Float::DoubleDouble::_bin2d(@bin, 1);
-  next if $roundup;
+  unless($bin[1] =~ /inf|nan/) {
+    next if (Data::Float::DoubleDouble::_trunc_rnd($bin[1], 53))[1];
+  }
 
   $done++;
 
@@ -304,16 +260,6 @@ for my $exp(298 .. 304) {
   my $h_redone = NV2H($nv_redone);
 
   if($h_redone ne $h) {
-
-    # Not a failure iff the second double is zero && the only difference is the sign of that zero.
-    if((
-        (substr($h, 16, 16) eq '8000000000000000' &&  substr($h_redone, 16, 16) eq '0000000000000000')
-       ||
-        (substr($h_redone, 16, 16) eq '8000000000000000' &&  substr($h, 16, 16) eq '0000000000000000')
-       )
-       &&
-        (substr($h, 0, 16) eq substr($h_redone, 0, 16))
-      ) {next}
 
     $count++;
     $ok = 0;

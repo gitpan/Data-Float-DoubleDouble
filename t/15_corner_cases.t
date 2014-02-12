@@ -1,9 +1,14 @@
+# Check that various cases that will probably not crop up at random (and that might need
+# special handling) are being handled correctly.
+# We check that H_float() correctly reverses float_H($nv) - wrt both the NV and the hex info
+# provided by NV2H($nv). 
+
 use strict;
 use warnings;
 use Math::NV qw(:all);
 use Data::Float::DoubleDouble qw(:all);
 
-my $t = 10;
+my $t = 42;
 
 print "1..$t\n";
 
@@ -65,7 +70,7 @@ for my $str(@case1) {
   my $h_redone = NV2H($nv_redone);
 
   if($nv != $nv_redone) {
-    warn "\n\$nv: $nv\n\$nv_redone: $nv_redone\n";
+    warn "\n\$str: $str\n\$nv: $nv\n\$nv_redone: $nv_redone\n";
     $ok = 0;
   }
 
@@ -323,3 +328,312 @@ if($ok) {print "ok 10\n"}
 else {print "not ok 10\n"}
 
 $ok = 1;
+$t = 10;
+
+my($nv1, $nv2, $nv3, $nv4) = (2 ** 1023, 2 ** 1000, 2 ** - 1074, 2 ** -1054);
+my @variants = (1, 2, 3, 4);
+
+
+# Begin tests 11-14
+
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 + ($nv1 * $curr[0])) + ($nv4 + ($nv3 * $curr[1]));
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Begin tests 15-18
+
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 + ($nv1 * $curr[0])) - ($nv4 + ($nv3 * $curr[1]));
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Begin tests 19-22
+
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv1 * $curr[0]) + ($nv3 * $curr[1]);
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+# Begin tests 23-26
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 * $curr[0]) + ($nv4 * $curr[1]);
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+$nv1 = nv('9007199254740991');
+$nv2 = 0;
+
+# Begin tests 27-30
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 + ($nv1 * $curr[0])) + ($nv4 + ($nv3 * $curr[1]));
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Begin tests 31-34
+
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 + ($nv1 * $curr[0])) - ($nv4 + ($nv3 * $curr[1]));
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+
+# Begin tests 35-38
+
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv1 * $curr[0]) + ($nv3 * $curr[1]);
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
+
+# Begin tests 39-42
+
+#################################
+for my $v(@variants) {
+  my($ok, $count) = (1, 0);
+  $t++;
+  my @curr;
+  @curr = ('-1', '-1') if $v == 4;
+  @curr = ('+1', '-1') if $v == 2;
+  @curr = ('-1', '+1') if $v == 3;
+  @curr = ('+1', '+1') if $v == 1;
+#################################
+
+  my $nv = ($nv2 * $curr[0]) + ($nv4 * $curr[1]);
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+
+
+    
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+#############################
+} # Close "for(@variants)" loop
+#############################
