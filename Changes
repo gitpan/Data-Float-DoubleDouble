@@ -1,5 +1,13 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.03
+    - Add some more tests.
+    - Add validate_hex, validate_unpack, validate_bin
+    - Add float_class, float_is_finite, float_is_zero, float_is_nzfinite, float_is_normal,
+      float_is_subnormal, nextafter, nextup, nextdown for compatibility with Data::Float.
+    - Add DD_* vars to reflect the float.h values for the various LDBL_* macros (and for
+      FLT_RADIX).
+
 1.02
     - Update version number to the correct value (1.02) ... as opposed to what
       happened wrt 1.01.

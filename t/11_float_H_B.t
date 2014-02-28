@@ -30,10 +30,8 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $str = $curr[0] . random_select($digits) . 'e' . $curr[1] . $exp;
     my $nv = nv($str);
     #next if(!$nv || are_inf($nv));
-    my @bin = get_bin($nv);
-    my $hex = float_H(@bin);
-    die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
-      unless $hex eq float_H($nv);
+    my @bin = float_B($nv);
+    my $hex = float_H($nv);
 
     my @check = float_H2B($hex);
 
@@ -84,10 +82,8 @@ for my $exp(298 .. 304) {
   my $nv = nv($str);
   $nv *= -1.0 if $v == 2;
   #next if(!$nv || are_inf($nv));
-  my @bin = get_bin($nv);
-  my $hex = float_H(@bin);
-  die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
-    unless $hex eq float_H($nv);
+  my @bin = float_B($nv);
+  my $hex = float_H($nv);
 
   my @check = float_H2B($hex);
 
@@ -148,10 +144,8 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $str = $curr[0] . random_select($digits) . 'e' . $curr[1] . $exp;
     my $nv = $str + 0.0;
     #next if(!$nv || are_inf($nv));
-    my @bin = get_bin($nv);
-    my $hex = float_H(@bin);
-    die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
-      unless $hex eq float_H($nv);
+    my @bin = float_B($nv);
+    my $hex = float_H($nv);
 
     my @check = float_H2B($hex);
 
@@ -202,10 +196,8 @@ for my $exp(298 .. 304) {
   my $nv = $str + 0.0;
   $nv *= -1.0 if $v == 2;
   #next if(!$nv || are_inf($nv));
-  my @bin = get_bin($nv);
-  my $hex = float_H(@bin);
-  die "Mismatch in float_H for $str\n$hex\n", float_H($nv), "\n"
-    unless $hex eq float_H($nv);
+  my @bin = float_B($nv);
+  my $hex = float_H($nv);
 
   my @check = float_H2B($hex);
 

@@ -1,4 +1,9 @@
 # Aiming to use the float_H() representation to re-create the original NV (double-double).
+# In this script we test only double-doubles where both doubles have the same sign.
+# In 21_H_float_roundup.t we do the converse - ie test only double-doubles where the 2
+# doubles have different signs.
+# We also test that the valid_unpack, valid_hex and valid_bin subs find nothing objectionable in the
+# objectionable in the hex and binary formats.
 
 use strict;
 use warnings;
@@ -35,6 +40,34 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     }
 
     my $h = NV2H($nv);
+
+    eval{valid_unpack($h, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_unpack died\n$h\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_bin(@bin, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_bin died\n@bin\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_hex($hex, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_hex died\n$hex\n$@\n"
+       unless $count > 10;
+    }
+
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
@@ -80,6 +113,34 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     }
 
     my $h = NV2H($nv);
+
+    eval{valid_unpack($h, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_unpack died\n$h\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_bin(@bin, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_bin died\n@bin\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_hex($hex, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_hex died\n$hex\n$@\n"
+       unless $count > 10;
+    }
+
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
@@ -125,6 +186,34 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     }
 
     my $h = NV2H($nv);
+
+    eval{valid_unpack($h, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_unpack died\n$h\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_bin(@bin, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_bin died\n@bin\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_hex($hex, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_hex died\n$hex\n$@\n"
+       unless $count > 10;
+    }
+
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
@@ -170,6 +259,34 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     }
 
     my $h = NV2H($nv);
+
+    eval{valid_unpack($h, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_unpack died\n$h\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_bin(@bin, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_bin died\n@bin\n$@\n"
+       unless $count > 10;
+    }
+
+    eval{valid_hex($hex, 1);};
+
+    if($@) {
+      $count++;
+      $ok = 0;
+      warn "\n$str: valid_hex died\n$hex\n$@\n"
+       unless $count > 10;
+    }
+
     my $h_redone = NV2H($nv_redone);
 
     if($h_redone ne $h) {
@@ -214,6 +331,34 @@ for my $exp(298 .. 304) {
   }
 
   my $h = NV2H($nv);
+
+  eval{valid_unpack($h, 1);};
+
+  if($@) {
+    $count++;
+    $ok = 0;
+    warn "\n$str: valid_unpack died\n$h\n$@\n"
+     unless $count > 10;
+  }
+
+  eval{valid_bin(@bin, 1);};
+
+  if($@) {
+    $count++;
+    $ok = 0;
+    warn "\n$str: valid_bin died\n@bin\n$@\n"
+     unless $count > 10;
+  }
+
+  eval{valid_hex($hex, 1);};
+
+  if($@) {
+    $count++;
+    $ok = 0;
+    warn "\n$str: valid_hex died\n$hex\n$@\n"
+     unless $count > 10;
+  }
+
   my $h_redone = NV2H($nv_redone);
 
   if($h_redone ne $h) {
@@ -257,6 +402,34 @@ for my $exp(298 .. 304) {
   }
 
   my $h = NV2H($nv);
+
+  eval{valid_unpack($h, 1);};
+
+  if($@) {
+    $count++;
+    $ok = 0;
+    warn "\n$str: valid_unpack died\n$h\n$@\n"
+     unless $count > 10;
+  }
+
+  eval{valid_bin(@bin, 1);};
+
+  if($@) {
+    $count++;
+    $ok = 0;
+    warn "\n$str: valid_bin died\n@bin\n$@\n"
+     unless $count > 10;
+  }
+
+  eval{valid_hex($hex, 1);};
+
+  if($@) {
+    $count++;
+    $ok = 0;
+    warn "\n$str: valid_hex died\n$hex\n$@\n"
+     unless $count > 10;
+  }
+
   my $h_redone = NV2H($nv_redone);
 
   if($h_redone ne $h) {
@@ -287,18 +460,4 @@ sub random_select {
   }
   return $ret;
 }
-
-__END__
-
-4e-298
-
-3.999999999999999649312930644493e-298 -2.879304828507645629477634806369e+163
-
-0230be08d0527e1d 00000001a712ddfb
-e1dfffffffffffff feda712ddfb00000
-
-1000010111110000010001101000001010010011111100001110101101001110001001011011101111110110000000000000000000000
-1000010111110000010001101000001010010011111100001110101101001110001001011011101111110110000000000000000000000
-
-
 

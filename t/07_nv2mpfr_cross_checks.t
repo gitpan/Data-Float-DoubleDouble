@@ -50,7 +50,7 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $fr = Math::MPFR->new($nv);
 
     next if are_inf($nv);
-    my ($sign, $mant, $exp) = get_bin($nv);
+    my ($sign, $mant, $exp) = float_B($nv);
     my $fr_sign;
     my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
 
@@ -151,7 +151,7 @@ for my $v(@variants) {
 for my $exp(298 .. 304) {
   my $str =  $curr[0] . '0.0000000009' . 'e' . $curr[1] . $exp;
   my $nv = $str + 0.0;
-  my ($sign, $mant, $exp) = get_bin($nv);
+  my ($sign, $mant, $exp) = float_B($nv);
   my $fr_sign;
 
   my $fr = Math::MPFR->new($nv);

@@ -1,4 +1,4 @@
-# Check get_bin() output against the mpfr library.
+# Check float_B() output against the mpfr library.
 use warnings;
 use strict;
 use Math::NV qw(:all);
@@ -47,7 +47,7 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
     my $fr = Math::MPFR->new($nv);
 
     next if are_inf($nv);
-    my ($sign, $mant, $exp) = get_bin($nv);
+    my ($sign, $mant, $exp) = float_B($nv);
     my $fr_sign;
     my $nv_redone1 = Math::MPFR::Rmpfr_get_NV($fr, $rnd);
 
@@ -148,7 +148,7 @@ for my $v(@variants) {
 for my $exp(298 .. 304) {
   my $str =  $curr[0] . '0.0000000009' . 'e' . $curr[1] . $exp;
   my $nv = nv($str);
-  my ($sign, $mant, $exp) = get_bin($nv);
+  my ($sign, $mant, $exp) = float_B($nv);
   my $fr_sign;
 
   my $fr = Math::MPFR->new($nv);
@@ -258,7 +258,7 @@ for my $v(@variants) {
 
   my $nv = ($nv2 + ($nv1 * $curr[0])) + ($nv4 + ($nv3 * $curr[1]));
 
-  my ($sign, $mant, $exp) = get_bin($nv);
+  my ($sign, $mant, $exp) = float_B($nv);
   my $fr_sign;
 
   my $fr = Math::MPFR->new($nv);
@@ -365,7 +365,7 @@ for my $v(@variants) {
 
   my $nv = ($nv2 + ($nv1 * $curr[0])) - ($nv4 + ($nv3 * $curr[1]));
 
-  my ($sign, $mant, $exp) = get_bin($nv);
+  my ($sign, $mant, $exp) = float_B($nv);
   my $fr_sign;
 
   my $fr = Math::MPFR->new($nv);
@@ -472,7 +472,7 @@ for my $v(@variants) {
 
   my $nv = ($nv1 * $curr[0]) + ($nv3 * $curr[1]);
 
-  my ($sign, $mant, $exp) = get_bin($nv);
+  my ($sign, $mant, $exp) = float_B($nv);
   my $fr_sign;
 
   my $fr = Math::MPFR->new($nv);
@@ -582,7 +582,7 @@ for my $v(@variants) {
 
   my $nv = ($nv2 * $curr[0]) + ($nv4 * $curr[1]);
 
-  my ($sign, $mant, $exp) = get_bin($nv);
+  my ($sign, $mant, $exp) = float_B($nv);
   my $fr_sign;
 
   my $fr = Math::MPFR->new($nv);

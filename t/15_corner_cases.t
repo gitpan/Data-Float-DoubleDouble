@@ -8,7 +8,7 @@ use warnings;
 use Math::NV qw(:all);
 use Data::Float::DoubleDouble qw(:all);
 
-my $t = 42;
+my $t = 45;
 
 print "1..$t\n";
 
@@ -65,12 +65,13 @@ for my $str(@case1) {
   my $nv = nv($str);
   my $hex = float_H($nv);
   my $nv_redone = H_float($hex);
+  my $nv_redone2 = B_float(float_B($nv));
 
   my $h = NV2H($nv);
   my $h_redone = NV2H($nv_redone);
 
-  if($nv != $nv_redone) {
-    warn "\n\$str: $str\n\$nv: $nv\n\$nv_redone: $nv_redone\n";
+  if($nv != $nv_redone || $nv != $nv_redone2) {
+    warn "\n\$str: $str\n\$nv: $nv\n\$nv_redone: $nv_redone\n\$nv_redone2: $nv_redone2\n";
     $ok = 0;
   }
 
@@ -89,12 +90,13 @@ for my $str(@case1) {
   my $nv = nv("-$str");
   my $hex = float_H($nv);
   my $nv_redone = H_float($hex);
+  my $nv_redone2 = B_float(float_B($nv));
 
   my $h = NV2H($nv);
   my $h_redone = NV2H($nv_redone);
 
-  if($nv != $nv_redone) {
-    warn "\n\$nv: $nv\n\$nv_redone: $nv_redone\n";
+  if($nv != $nv_redone || $nv != $nv_redone2) {
+    warn "\n\$str: $str\n\$nv: $nv\n\$nv_redone: $nv_redone\n\$nv_redone2: $nv_redone2\n";
     $ok = 0;
   }
 
@@ -113,12 +115,13 @@ for my $str(@case2) {
   my $nv = nv($str);
   my $hex = float_H($nv);
   my $nv_redone = H_float($hex);
+  my $nv_redone2 = B_float(float_B($nv));
 
   my $h = NV2H($nv);
   my $h_redone = NV2H($nv_redone);
 
-  if($nv != $nv_redone) {
-    warn "\n\$nv: $nv\n\$nv_redone: $nv_redone\n";
+  if($nv != $nv_redone || $nv != $nv_redone2) {
+    warn "\n\$str: $str\n\$nv: $nv\n\$nv_redone: $nv_redone\n\$nv_redone2: $nv_redone2\n";
     $ok = 0;
   }
 
@@ -137,12 +140,13 @@ for my $str(@case2) {
   my $nv = nv("-$str");
   my $hex = float_H($nv);
   my $nv_redone = H_float($hex);
+  my $nv_redone2 = B_float(float_B($nv));
 
   my $h = NV2H($nv);
   my $h_redone = NV2H($nv_redone);
 
-  if($nv != $nv_redone) {
-    warn "\n\$nv: $nv\n\$nv_redone: $nv_redone\n";
+  if($nv != $nv_redone || $nv != $nv_redone2) {
+    warn "\n\$str: $str\n\$nv: $nv\n\$nv_redone: $nv_redone\n\$nv_redone2: $nv_redone2\n";
     $ok = 0;
   }
 
@@ -637,3 +641,89 @@ else {print "not ok $t\n"}
 #############################
 } # Close "for(@variants)" loop
 #############################
+
+$ok = 1;
+$t++;
+
+for my $nv(2 ** - 1074, -(2 ** -1074), 
+           (2 ** -1074) + (2 ** -1040),
+           -((2 ** -1074) + (2 ** -1040))
+          ) {
+
+  my $hex = float_H($nv);
+  my $nv_redone = H_float($hex);
+  my $hex_redone = float_H($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  if($hex ne $hex_redone) {
+    warn "\nHex mismatch:\n$hex\n$hex_redone\n";
+    $ok = 0;
+  }
+}
+
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+$ok = 1;
+$t++;
+
+my $biggest_finite = Data::Float::DoubleDouble::_get_biggest();
+
+if($biggest_finite == $Data::Float::DoubleDouble::max_fin) {
+  print "ok $t\n";
+}
+else {
+  print "not ok $t\n";
+}
+
+$t++;
+
+for my $nv(2 ** - 1074, -(2 ** -1074), 
+           (2 ** -1074) + (2 ** -1040),
+           -((2 ** -1074) + (2 ** -1040)),
+           $biggest_finite,
+           -$biggest_finite,
+          ) {
+
+  my @bin = float_B($nv);
+  my $nv_redone = B_float(@bin);
+  my @bin_redone = float_B($nv_redone);
+
+  if($nv != $nv_redone) {
+    warn "\nNV mismatch:\n", NV2H($nv), "\n", NV2H($nv_redone), "\n";
+    $ok = 0;
+  }
+
+  unless(is_same(\@bin, \@bin_redone)) {
+    warn "\nBin mismatch:\n@bin\n@bin_redone\n";
+    $ok = 0;
+  }
+}
+
+if($ok) {print "ok $t\n"}
+else {print "not ok $t\n"}
+
+$ok = 1;
+$t++;
+
+############################
+############################
+
+sub is_same {
+   my @one = @{$_[0]};
+   my @two = @{$_[1]};
+
+   return 0 if @one != @two;
+
+   for(0..$#one) {
+     if($one[$_] ne $two[$_]) {
+       warn "\n$one[$_] $two[$_]\n";
+       return 0;
+     }
+   }
+   return 1;
+}

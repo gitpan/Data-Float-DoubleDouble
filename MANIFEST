@@ -2,8 +2,12 @@ MANIFEST
 Changes
 Makefile.PL
 DoubleDouble.pm
+DoubleDouble.xs
 t/01_load.t
 t/02_str2mpfr_cross_checks.t
+t/03_next.t
+t/04_validate.t
+t/05_DD.t
 t/07_nv2mpfr_cross_checks.t
 t/11_float_H_B.t
 t/15_corner_cases.t

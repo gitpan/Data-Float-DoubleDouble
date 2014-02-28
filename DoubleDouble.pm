@@ -7,21 +7,52 @@ require 5.010;
 
 require Exporter;
 *import = \&Exporter::import;
+require DynaLoader;
 
-@Data::Float::DoubleDouble::EXPORT_OK = qw(NV2H H2NV D2H H2D get_sign
+use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
+            DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
+            DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN);
+
+@Data::Float::DoubleDouble::EXPORT_OK = qw(
+ DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
+ DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
+ DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN
+ NV2H H2NV D2H H2D get_sign
  get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
- float_H2B B2float_H standardise_bin_mant hex_float float_hex get_bin
+ float_H2B B2float_H standardise_bin_mant hex_float float_hex float_B B_float
+ valid_hex valid_bin valid_unpack
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
- float_is_normal float_is_subnormal float_class);
+ float_is_normal float_is_subnormal float_class
+ nextafter nextup nextdown);
 
-%Data::Float::DoubleDouble::EXPORT_TAGS = (all =>[qw(NV2H H2NV D2H H2D
+%Data::Float::DoubleDouble::EXPORT_TAGS = (all =>[qw(
+ DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
+ DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
+ DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN
+ NV2H H2NV D2H H2D
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
- float_H2B B2float_H standardise_bin_mant float_hex hex_float get_bin
+ float_H2B B2float_H standardise_bin_mant float_hex hex_float float_B B_float
+ valid_hex valid_bin valid_unpack
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
- float_is_normal float_is_subnormal float_class)]);
+ float_is_normal float_is_subnormal float_class
+ nextafter nextup nextdown)]);
 
-our $VERSION = '1.02';
+# Maximum finite ($max_fin) is actually:
+#   2**1023 + 2**1022 + 2**1021 ....  + 2**919 + 2**918 + 2**917 - 2 ** 970
+# but you can't calcualte it that way. (See _get_biggest() for the calculation.)
+# On my machine this equals LDBL_MAX + 2**917.
+# LDBL_MAX is set to the biggest representable 106-bit number,
+# whereas $max_fin is a 107-bit value. Certainly, if we increment $max_fin by
+# the smallest amount that will actually alter it (ie by 2**916), then we get Inf.
+
+$Data::Float::DoubleDouble::pos_eps = 2 ** -1074;
+$Data::Float::DoubleDouble::neg_eps = -(2 ** -1074);
+$Data::Float::DoubleDouble::max_fin =  H2NV('7fefffffffffffff7c8fffffffffffff');
+$Data::Float::DoubleDouble::min_fin = $Data::Float::DoubleDouble::max_fin * -1;
+
+our $VERSION = '1.03';
 $VERSION = eval $VERSION;
+DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
 #$Data::Float::DoubleDouble::debug = 0; 
 #$Data::Float::DoubleDouble::pack = $Config{nvtype} eq 'double' ? "F<" : "D<";
@@ -124,22 +155,29 @@ sub get_mant_H {
 # 1) sign
 # 2) mantissa (in binary, implicit radix point after first digit)
 # 3) exponent
-# For nan/inf, the mantissa is 'nan' or 'inf' respectively.
+# For nan/inf, the mantissa is 'nan' or 'inf' respectively unless 
+# 2nd arg is literally 'raw'.
 
-sub get_bin {
+sub float_B {
   my $hex = NV2H($_[0]);
 
-  if($hex eq '7ff00000000000000000000000000000') { # +inf
-    return ('+', 'inf', 1024);
-  }
-  if($hex eq 'fff00000000000000000000000000000') { # -inf
-    return ('-', 'inf', 1024);
-  }
-  if($hex eq '7ff80000000000000000000000000000') { # + nan
-    return ('+', 'nan', 1024);
-  }
-  if($hex eq 'fff80000000000008000000000000000') { # - nan
-    return ('-', 'nan', 1024);
+  my $raw = @_ == 2 && $_[1] eq 'raw' ? 1 : 0;
+
+  # If the 2nd arg is 'raw' we do the calculations for the arg
+  # even if it is an Inf/NaN.
+  unless($raw) {
+    if($hex eq '7ff00000000000000000000000000000') { # +inf
+      return ('+', 'inf', 1024);
+    }
+    if($hex eq 'fff00000000000000000000000000000') { # -inf
+      return ('-', 'inf', 1024);
+    }
+    if($hex eq '7ff80000000000000000000000000000') { # + nan
+      return ('+', 'nan', 1024);
+    }
+    if($hex eq 'fff80000000000008000000000000000') { # - nan
+      return ('-', 'nan', 1024);
+    }
   }
 
   my $pre1 = hex(substr($hex, 0, 3));
@@ -218,18 +256,37 @@ sub get_bin {
 
 ##############################
 ##############################
+# Return the NV from the binary pepresentation (sign, mantissa, exponent).
+
+sub B_float {
+  die "Wrong number of args to B_float (", scalar @_, ")"
+    unless @_ == 3;
+
+  my $hex = B2float_H(@_);
+  return H_float($hex);
+}
 
 ##############################
 ##############################
 # Return a hex string representation as per perl Data::Float
 # For NaN and Inf returns 'nan' or 'inf' (prefixed with either
-# '+' or '-' as appropriate).
+# '+' or '-' as appropriate) unless an additional arg of 'raw'
+# has been provided - in which case it does the calculations
+# and returns the hex string it has calculated.
 
 sub float_H {
   my ($sign, $mant, $exp);
-  if(@_ == 1)    {($sign, $mant, $exp) = get_bin($_[0])}
-  elsif(@_ == 3) {($sign, $mant, $exp) = ($_[0], $_[1], $_[2])}
-  else { die "Expected either 1 or 3 args to float_H() - received ", scalar @_}
+
+  if(@_ == 1)            {($sign, $mant, $exp) = float_B($_[0])}
+  elsif(@_ == 2) {
+    if($_[1] eq 'raw') {
+      ($sign, $mant, $exp) = float_B($_[0], 'raw');
+    }
+    else {
+      ($sign, $mant, $exp) = float_B($_[0]);
+    }
+  }
+  else { die "Expected either 1 or 2 args to float_H() - received ", scalar @_}
 
   if($mant eq 'nan') {
     $sign eq '-' ? return '-nan'
@@ -242,11 +299,11 @@ sub float_H {
 
   my $mant_len = length $mant;
 
-  # Mantissa returned by get_bin is at least 108 bits
+  # Mantissa returned by float_B is at least 108 bits
   die "Mantissa calculated by float_H() is too short ($mant_len)"
     if $mant_len < 108;
 
-  # Length of mantissa returned by get_bin() is always
+  # Length of mantissa returned by float_B() is always
   # evenly divisible by 4
   die "Mantissa calculated by float_H() is not divisible by 4 ($mant_len)"
     if $mant_len % 4;
@@ -272,10 +329,25 @@ sub float_H {
 
 sub H_float {
 
-  if($_[0] eq '+inf') {return H2NV('7ff00000000000000000000000000000')} # +inf
-  if($_[0] eq '-inf') {return H2NV('fff00000000000000000000000000000')} # -inf
-  if($_[0] eq '+nan') {return H2NV('7ff80000000000000000000000000000')} # + nan
-  if($_[0] eq '-nan') {return H2NV('fff80000000000008000000000000000')} # - nan
+  if($_[0] eq '+inf'
+     ||
+     $_[0] eq '+0x1.000000000000000000000000000p1024'
+     ) {return H2NV('7ff00000000000000000000000000000')} # +inf
+
+  if($_[0] eq '-inf'
+     ||
+     $_[0] eq '-0x1.000000000000000000000000000p1024'
+     ) {return H2NV('fff00000000000000000000000000000')} # -inf
+
+  if($_[0] eq '+nan'
+     ||
+     $_[0] eq '+0x1.800000000000000000000000000p1024'
+     ) {return H2NV('7ff80000000000000000000000000000')} # + nan
+
+  if($_[0] eq '-nan'
+     ||
+     $_[0] eq '-0x1.800000000000000000000000000p1024'
+     ) {return H2NV('fff80000000000008000000000000000')} # - nan
 
   my($sign, $mant, $exp) = float_H2B($_[0]);
   my $overflow = 0;
@@ -308,9 +380,6 @@ sub H_float {
 
     $m = substr($m, 53) unless $overflow;
 
-    # decrement exponent if $d1 ends in 12 zeroes && $bin[1] begins with 53 zeroes
-    #$exp -- if($d1_bin =~ /0000000000000$/ && $mant =~ /^11111111111111111111111111111111111111111111111111111/);
-
     my ($d1, $exponent) = _calculate($d1_bin, $exp);
     $exponent = $overflow_exp if $overflow;
     my ($d2, $discard) = _calculate($m, $exponent);
@@ -326,21 +395,36 @@ sub H_float {
 ##############################
 # Convert the hex format returned by float_H to binary.
 # An array of 3 elements is returned - sign, mantissa, exponent.
-# For nan/inf the mantissa is set to 'nan' or 'inf' respectively.
+# For nan/inf the mantissa is set to 'nan' or 'inf' respectively
+# unless a second arg of literally 'raw' is provided.
 
 sub float_H2B {
 
-  if($_[0] eq '+inf') {
-    return ('+', 'inf', 1024);
+  my $raw = @_ == 2 && $_[1] eq 'raw' ? 1 : 0;
+
+  if($_[0] eq '+inf'
+     ||
+     $_[0] eq '+0x1.000000000000000000000000000p1024') {
+      $raw == 0 ? return ('+', 'inf', 1024)
+                : return ('+', '1' . '0' x 107, 1024);
   }
-  if($_[0] eq '-inf') {
-    return ('-', 'inf', 1024);
+  if($_[0] eq '-inf'
+     ||
+     $_[0] eq '-0x1.000000000000000000000000000p1024') {
+      $raw == 0 ? return ('-', 'inf', 1024)
+                : return ('-', '1' . '0' x 107, 1024);
   }
-  if($_[0] eq '+nan') {
-    return ('+', 'nan', 1024);
+  if($_[0] eq '+nan'
+     ||
+     $_[0] eq '+0x1.800000000000000000000000000p1024') {
+      $raw == 0 ? return ('+', 'nan', 1024)
+                : return ('+', '11' . '0' x 106, 1024);
   }
-  if($_[0] eq '- nan') {
-    return ('-', 'nan', 1024);
+  if($_[0] eq '- nan'
+     ||
+     $_[0] eq '-0x1.800000000000000000000000000p1024') {
+      $raw == 0 ? return ('-', 'nan', 1024)
+                : return ('-', '11' . '0' x 106, 1024)
   }
 
   my $sign = $_[0] =~ /^\-/ ? '-' : '+';
@@ -360,6 +444,8 @@ sub float_H2B {
 ##############################
 # Convert from binary representation to the hex representation
 # returned by float_H.
+# For inf and nan, return '+' or '-' 'inf' or 'nan' (respectively)
+# unless a 4th arg of 'raw' is provided.
 
 sub B2float_H {
 
@@ -367,17 +453,27 @@ sub B2float_H {
   my $mant = shift;
   my $exp = shift;
 
-  if($mant eq 'inf') {
-    $sign eq '-' ? return '-inf'
-                 : return '+inf';
+  my $raw = @_ == 1 && $_[0] eq 'raw' ? 1 : 0;
+
+  if($mant eq 'inf'
+     ||
+     ($mant eq '1' . '0' x 107 && $exp == 1024)) {
+    $sign eq '-' ? !$raw ? return '-inf'
+                             : return '-0x1.000000000000000000000000000p1024'
+                 : !$raw ? return '+inf'
+                         : return '+0x1.000000000000000000000000000p1024';
   }
-  if($mant eq 'nan') {
-    $sign eq '-' ? return '-nan'
-                 : return '+nan';
+  if($mant eq 'nan'
+     ||
+     ($mant eq '11' . '0' x 106 && $exp == 1024)) {
+    $sign eq '-' ? !$raw ? return '-nan'
+                         : return '-0x1.800000000000000000000000000p1024'
+                 : !$raw ? return '+nan'
+                         : return '+0x1.800000000000000000000000000p1024';
   }
 
   my $lead = substr($mant, 0, 1, '');
-
+  $mant .= '0' while (length($mant) % 4); # _bin2hex() expects length($mant) to be divisible by 4.
   $mant = _bin2hex($mant);
 
   return $sign . '0x' . $lead . '.' . $mant . 'p' . $exp;
@@ -433,7 +529,176 @@ sub are_nan {
 }
 
 ##############################
-############################## 
+##############################
+# Checks and returns a validated hex format - such as that returned bt float_H.
+# Dies if it can't validate the supplied argument.
+# Unless $die is set, it will make some simple adjustments
+
+sub valid_hex {
+
+  die "valid_hex() expects either 1 or 2 (not ", scalar @_, ") args"
+    if(!@_ || @_ > 2);
+
+  my $hex = $_[0];
+  my $die = defined $_[1] ? $_[1] : 0;
+
+  unless($hex =~ /[\-\+]/) {
+    die "No leading sign" if $die;
+    $hex = '+' . $hex; # Just fix it if !$die
+  }
+
+  return $hex if($hex eq '+inf' || $hex eq '-inf' || $hex eq '+nan' || $hex eq '-nan');
+
+  my $sign = substr($hex, 0, 1);
+
+  my $prefix = substr($hex, 1, 4);
+
+  # Here we die irrespective of $die
+  die "Unrecognized prefix" if($prefix ne '0x1.' &&
+                               $prefix ne '0x0.');
+
+  my(@val) = split /p/, $hex;
+
+  die "Invalid string ($hex)" if @val != 2;
+  my($mant, $exp) = @val;
+  die "Invalid exponent ($exp)" if $exp =~ /[^\-\+\d]/;
+
+  $mant = substr($mant, 5);
+  die "Invalid mantissa $mant)" if $mant =~ /[^\dA-Fa-f]/;
+  if(length($mant) < 27) {
+    die "Mantissa is too small ($mant)" if $die;
+    $mant .= '0' while length $mant < 27;
+  }
+  if(length($mant) > 526) {
+    die "Mantissa is too large (", length($mant), " chars)"
+      if $die;
+    my $bin = Data::Float::DoubleDouble::_hex2bin($mant);
+    my @trunc = Data::Float::DoubleDouble::_trunc_rnd($bin, 2104);
+    $bin = $trunc[0];
+    $mant = Data::Float::DoubleDouble::_bin2hex($mant);
+  }
+
+  if($exp >= 1024) {
+    die "Exponent too large ($exp)"
+      if $exp > 1024;
+
+    die "Invalid inf/nan format"
+      unless($_[0] eq '+0x1.000000000000000000000000000p1024'
+             ||
+             $_[0] eq '-0x1.000000000000000000000000000p1024'
+             ||
+             $_[0] eq  '0x1.000000000000000000000000000p1024'
+             ||
+             $_[0] eq '+0x1.800000000000000000000000000p1024'
+             ||
+             $_[0] eq '-0x1.800000000000000000000000000p1024'
+             ||
+             $_[0] eq  '0x1.800000000000000000000000000p1024');
+    $_[0] =~ /^0x/ ? return '+' . $_[0]
+                   : return $_[0];
+  }
+
+  if(($mant !~ /[^0]/ && $prefix =~ /0\.$/) || $exp < -1074) {
+    my $ret = $sign eq '-' 
+      ? '-0x0.000000000000000000000000000p-1022'
+      : '+0x0.000000000000000000000000000p-1022';
+    die "Wanting to return a different zero format"
+      if( $die &&  $_[0] ne $ret);
+    return $ret;
+  }
+
+  return $sign . $prefix . $mant . 'p' . $exp;
+  
+}
+
+
+##############################
+# Verify that the given argument is a valid 'unpack' format - such as
+# retured by NV2H. That is, check that it consists only of valid hex
+# characters and that there are 32 of them.
+# If there's less than 32 of them, either die (if $die is set) or 
+# append zeroes until the length is 32 (if $die is not set).
+
+sub valid_unpack {
+
+  die "valid_unpack() expects either 1 or 2 (not ", scalar @_, ") args"
+    if(!@_ || @_ > 2);
+
+  my $unpack = $_[0];
+  my $die = defined $_[1] ? $_[1] : 0;
+
+  my $len = length($_[0]);
+
+  die "Empty string passed to valid_unpack()"
+    unless $len;
+  die "Length ($len) of string passed to valid_unpack() must be no more than 32"
+    if $len > 32;
+  die "Invalid hex chars passed to valid_unpack()"
+    if $_[0] =~ /[^0-9A-Fa-f]/;
+  die if (length($_[0]) < 32 && $die);
+  $unpack .= '0' while length($unpack) < 32;
+  return $unpack;
+}
+
+##############################
+# Checks and returns a validated binary format (sign, mantissa, exponent) - such
+# as that returned by float_B().
+# Dies if it can't validate the supplied arguments.
+# Unless $die is set, it will make some simple adjustments
+
+sub valid_bin {
+  my($sign, $mant, $exp, $die) = @_;
+  if($sign !~ /[\-\+]/ || $sign =~ /[^\-\+]/) {
+    die "Invalid sign ($sign)" if ($die || $sign ne '');
+    $sign = '+'; # Just fix the empty string if !$die
+  }
+
+  if(($mant eq 'inf' || $mant eq 'nan') && $exp == 1024) {
+    return ($sign, $mant, $exp);
+  }
+
+  die "Invalid mantissa $mant)" if $mant =~ /[^01]/;
+  if(length($mant) < 108) {
+    die "Mantissa is too small ($mant)" if $die;
+    $mant .= '0' while length $mant < 108;
+  }
+  if(length($mant) > 2104) {
+    die "Mantissa is too large (", length($mant), " chars)"
+      if $die;
+    my @trunc = Data::Float::DoubleDouble::_trunc_rnd($mant, 2104);
+
+    $mant = $trunc[0];
+  }
+
+  die "Invalid exponent ($exp)"
+   if $exp =~ /[^\-\+\d]/;
+
+  if($exp >= 1024) {
+    die "Exponent too large ($exp)"
+      if $exp > 1024;
+
+    die "Invalid inf/nan format"
+    unless($_[1] eq '1' . '0' x 107
+           ||
+           $_[1] eq '11' . '0' x 106);
+  }
+
+  if($exp < -1074) {
+    die "Exponent too small ($exp)" if $die;
+    my @ret = ($sign, '0' x 108, -1022);
+    die "Wanting to return a different zero format "
+      if($die && ($ret[1] ne $_[1] || $ret[2] ne $_[2]));
+    return @ret;
+  }
+
+  return ($sign, $mant, $exp);
+}
+
+##############################
+##############################
+##############################
+##############################
+##############################
 ##############################
 ##############################
 # Binary subtract second arg from first arg - args must be of same length.
@@ -476,7 +741,7 @@ sub _subtract_b {
 ##############################
 ##############################
 # Binary-subtract the second arg from the first arg.
-# This sub written specifically for get_bin() the output of which,
+# This sub written specifically for float_B() the output of which,
 # is, in turn, needed for float_H().
 
 sub _subtract_p {
@@ -525,9 +790,12 @@ sub _subtract_p {
 ##############################
 ##############################
 # Convert a binary string to a hex string.
+# Length of string must be a multiple of 4
 
 sub _bin2hex {
   my $len = length($_[0]);
+  die "_bin2hex() has been passed an empty string"
+    unless $len;
   die "Wrong length ($len) supplied to _bin2hex()"
     if $len % 4;
   $len /=  4;
@@ -595,15 +863,13 @@ sub _add_1 {
 
 ##############################
 ##############################
-# Normally, the 2 args that this function receives will be:
-#  1) The base 2 representation (including the implied leading 0 or 1)
-#     of the double-double we're working with;
-#  2) The length to which we wish to truncate the string of bits (usually 53).
-#
-# Set a binary string to a specified no. of bits, rounding to nearest (ties
-# to even) if the string needs to be truncated ... which it possibly does.
-# Returns a list - first element is the truncated/rounded string, second
-# element is 'true' iff rounding up occurred, else second element is false.
+# Set a binary string (1st arg) to a specified no. of bits (2nd arg), rounding
+# to nearest (ties to even) if the string needs to be truncated.
+# If the string is shorter than the number of bits specified then zeroes are
+# appended until the string reaches the required length.
+# Returns a list of 2 values - first element is the truncated/rounded/extended
+# string (or the original string if no truncation/rounding/extension was needed).
+# Second element is 'true' iff rounding up occurred, else second element is false.
 # This function is a key to determining the value of the double-double's
 # two doubles, from the entire binary representation of the mantissa.
 
@@ -634,6 +900,26 @@ sub _trunc_rnd {
   if(substr($first, -1, 1) eq '0') {return ($first, 0)}
   return (_add_1($first), 1);
 }
+
+##############################
+##############################
+# Returns the largest representable finite number.
+
+sub _get_biggest {
+  my $nv1 = 0;
+
+  # The order is important !!
+  # Doing (917 .. 969, 971 .. 1023) will not work 
+  for(971 .. 1023, 917 .. 969) {
+    $nv1 += 2 ** $_;
+  }
+
+  return $nv1;
+
+}
+
+##############################
+##############################
 
 ##############################
 ##############################
@@ -674,10 +960,101 @@ sub float_is_subnormal {
   return 0;
 }
 
+sub nextafter {
+  if(are_nan($_[0])) {return $_[0]}
+  if(are_nan($_[1])) {return $_[1]}
+  if($_[0] == $_[1])    {return $_[1]}
+  elsif($_[0] > $_[1])  {return nextdown($_[0])}
+  else                  {return nextup($_[0])}
+}
+
+sub nextup {
+  return $_[0] if (are_nan($_[0]) || (are_inf($_[0]) && $_[0] > 0));
+  return $Data::Float::DoubleDouble::min_fin
+    if (are_inf($_[0]) && $_[0] < 0);
+  for(-1074 .. 1024) {
+    my $candidate = $_[0] + (2 ** $_);
+    if($candidate > $_[0]) {
+      return H2NV('80000000000000000000000000000000')
+        if $candidate == 0;
+      return $candidate;
+    }
+  }
+  # We shouldn't get to here
+  die "nextup() failed to terminate in an expected manner";
+}
+
+sub nextdown {
+  return $_[0] if (are_nan($_[0]) || (are_inf($_[0]) && $_[0] < 0));
+  return $Data::Float::DoubleDouble::max_fin
+    if (are_inf($_[0]) && $_[0] > 0);
+  for(-1074 .. 1024) {
+    my $candidate = $_[0] - (2 ** $_);
+    return $candidate if $candidate < $_[0];
+  }
+  # We shouldn't get to here
+  die "nextdown() failed to terminate in an expected manner";
+}
+
+
 *float_hex = \&float_H;
 *hex_float = \&H_float;
 *float_is_infinite = \&are_inf;
 *float_is_nan = \&are_nan;
+
+sub DD_FLT_RADIX {            # 2
+ return _FLT_RADIX();
+}
+
+sub DD_LDBL_MAX {             # 1.797693134862315807937289714053e+308
+ return _LDBL_MAX();
+}
+
+sub DD_LDBL_MIN {             # 2.00416836000897277799610805135e-292
+ return _LDBL_MIN();
+}
+
+sub DD_LDBL_DIG {             # 31
+ return _LDBL_DIG();
+}
+
+sub DD_LDBL_MANT_DIG {        # 106
+ return _LDBL_MANT_DIG();
+}
+
+sub DD_LDBL_MIN_EXP {         # -968
+ return _LDBL_MIN_EXP();
+}
+
+sub DD_LDBL_MAX_EXP {         # 1024
+ return _LDBL_MAX_EXP();
+}
+
+sub DD_LDBL_MIN_10_EXP {      # -291
+ return _LDBL_MIN_10_EXP();
+}
+
+sub DD_LDBL_MAX_10_EXP {      # 308
+ return _LDBL_MAX_10_EXP();
+}
+
+sub DD_LDBL_EPSILON {         # 4.450147717014402766180465434665e-308
+ return _LDBL_EPSILON();
+}
+
+sub DD_LDBL_DECIMAL_DIG {     # undef
+ return _LDBL_DECIMAL_DIG();
+}
+
+sub DD_LDBL_HAS_SUBNORM {     # undef
+ return _LDBL_HAS_SUBNORM();
+}
+
+sub DD_LDBL_TRUE_MIN {        # undef
+ return _LDBL_TRUE_MIN();
+}
+
+sub dl_load_flags {0} # Prevent DynaLoader from complaining and croaking
 
 1;
 
@@ -685,7 +1062,7 @@ __END__
 
 =head1 NAME
 
-Data::Float::DoubleDouble -  human-friendly representation of the "double-double" long double
+Data::Float::DoubleDouble -  human-readable representation of the "double-double" long double
 
 
 =head1 AIM
@@ -705,6 +1082,9 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
    For 2) we use H2NV().
    For 3) we use float_H().
    For 4) we use H_float().
+
+   We also have float_B and B_float which are the base 2
+   equivalents of float_H and H_float.
 
 
 =head1 FUNCTIONS
@@ -788,7 +1168,7 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
    For $hex written in the format returned by float_H(), returns
    the NV that corresponds to $hex.
   #############################################  
-  @bin = get_bin($nv);
+  @bin = float_B($nv);
 
    Returns the sign, the mantissa (as a base 2 string), and the
    exponent of $nv. (There's an implied radix point between the
@@ -796,16 +1176,16 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
   #############################################
   @bin = float_H2B($hex);
 
-   As for the above get_bin() function - but takes the hex
+   As for the above float_B() function - but takes the hex
    string of the NV (as returned by float_H) as its argument,
    instead of the actual NV.
-   For a more direct way of obtaining the array, use get_bin
+   For a more direct way of obtaining the array, use float_B
    instead.
   #############################################
   $hex = B2float_H(@bin);
 
    The reverse of float_H2B. It takes the array returned by
-   either get_bin or float_H2B as its arguments, and returns
+   either float_B or float_H2B as its arguments, and returns
    the corresponding hex form.
   #############################################
   ($sign1, $sign2) = get_sign($nv);
@@ -839,6 +1219,49 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
 
    Returns true if and only if all of the (NV) arguments are
    NaNs. Else returns false.
+  #############################################
+  $hex = valid_unpack($string [,$die]); # 2nd arg optional
+
+   Verify that the 1st arg is a valid 'unpack' format - such as
+   retured by NV2H.
+   Die if it's an empty string.
+   Die if it has a length greater than 32.
+   Check that it consists only of valid hex characters and that
+   there are 32 of them.
+   If it consists solely of hex characters but there's less than
+   32 of them, either die (if $die is set) or append zeroes until
+   the length is 32 (if $die is not set).
+   If the string was modified, return that modified string - else
+   return the 1st arg. 
+  #############################################
+  @bin = valid_bin($sign, $mantissa, $exponent [,$die]);
+
+   Checks and returns a validated binary format (sign,
+   mantissa, exponent) - such as that returned by float_B().
+   Dies if it can't validate the supplied arguments.
+   If exponent is 1024, the sub will die unless mantissa matches
+   the format for an inf or a nan.
+   Dies if exponent > 1024.
+   Returns 0 if exponent <= -1075 (unless $die is set &&
+   mantissa =~ /1/ - in which case it dies.)
+   Unless $die is set, it will make some simple modifications
+   if needed:
+    1) Set $sign to '+' if it's the empty string;
+    2) Append zeroes to $mantissa if there are too few
+       characters.
+   Return $sign, $mantissa, $exponent.
+  #############################################
+  $hex = valid_hex($float_string [,$die]);
+
+   Checks and returns a validated hex format - such as that
+   returned by float_H. Dies if it can't validate the supplied
+   argument.
+   Unless $die is set, it will make some simple modifications
+   if needed:
+    1) Prepend a '+' sign if no sign is present;
+    2) Append zeroes if there are too few characters.
+   If the string was modified, return that modified string - else
+   return the 1st arg.
   #############################################
 
   For Compatibility with Data::Float:
@@ -886,9 +1309,43 @@ Data::Float::DoubleDouble -  human-friendly representation of the "double-double
    Returns true if NV is finite && non-zero && the implied
    leading digit in its internal representation is '0'.
   #############################################
+  $nv = nextafter($nv1, $nv2);
 
+   $nv1 and $nv2 must both be floating point values. Returns the
+   next representable floating point value adjacent to $nv1 in the
+   direction of $nv2, or returns $nv2 if it is numerically
+   equal to $nv1. Infinite values are regarded as being adjacent to
+   the largest representable finite values. Zero counts as one value,
+   even if it is signed, and it is adjacent to the positive and
+   negative smallest representable finite values. If a zero is returned
+   then it has the same sign as $nv1. Returns
+   NaN if either argument is a NaN.
   #############################################
+  $nv = nextup($nv1);
+
+   $nv1 must be a floating point value. Returns the next representable
+   floating point value adjacent to $nv1 with a numerical value that
+   is strictly greater than $nv1, or returns $nv1 unchanged if there
+   is no such value. Infinite values are regarded as being adjacent to
+   the largest representable finite values. Zero counts as one value,
+   even if it is signed, and it is adjacent to the smallest
+   representable positive and negative finite values. If a zero is
+   returned, because $nv1 is the smallest representable negative
+   value, and zeroes are signed, it is a negative zero that is
+   returned. Returns NaN if $nv1 is a NaN.
   #############################################
+  $nv = nextdown($nv1);
+
+   $nv1 must be a floating point value. Returns the next representable
+   floating point value adjacent to $nv1 with a numerical value that
+   is strictly less than $nv1, or returns $nv1 unchanged if there is
+   no such value. Infinite values are regarded as being adjacent to the
+   largest representable finite values. Zero counts as one value, even
+   if it is signed, and it is adjacent to the smallest representable
+   positive and negative finite values. If a zero is returned, because
+   $nv is the smallest representable positive value, and zeroes are
+   signed, it is a positive zero that is returned. Returns NaN if VALUE
+   is a NaN.
   #############################################
   #############################################
 
