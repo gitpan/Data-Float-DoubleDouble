@@ -1,5 +1,9 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.04
+    - Add some metadata to Makefile.PL.
+    - Small rewrite of float_B to avoid new warning scheduled for 5.22
+
 1.03
     - Add some more tests.
     - Add validate_hex, validate_unpack, validate_bin
@@ -7,6 +11,7 @@ Revision history for Perl module Data::Float::DoubleDouble
       float_is_subnormal, nextafter, nextup, nextdown for compatibility with Data::Float.
     - Add DD_* vars to reflect the float.h values for the various LDBL_* macros (and for
       FLT_RADIX).
+    - Define PERL_NO_GET_CONTEXT
 
 1.02
     - Update version number to the correct value (1.02) ... as opposed to what
@@ -15,7 +20,7 @@ Revision history for Perl module Data::Float::DoubleDouble
 1.01
     - INCOMPATIBLE WITH EARLIER VERSIONS !!
     - Refactor, including coverage of those double-doubles whose values require more
-      than 106 bits for accurate representation. 
+      than 106 bits for accurate representation.
 
 0.03
     - Alter float_H to, in list context, return (single) sign and (single) exponent, in

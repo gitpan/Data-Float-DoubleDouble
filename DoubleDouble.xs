@@ -5,6 +5,8 @@
 #endif
 #endif
 
+#define PERL_NO_GET_CONTEXT 1
+
 
 #include "EXTERN.h"
 #include "perl.h"
@@ -13,7 +15,7 @@
 
 /* Radix of exponent representation, b. */
 
-SV * _FLT_RADIX(void) {
+SV * _FLT_RADIX(pTHX) {
 #ifdef FLT_RADIX
  return newSViv(FLT_RADIX);
 #else
@@ -26,7 +28,7 @@ SV * _FLT_RADIX(void) {
 	(1 - b**-p) * b**emax
 */
 
-SV * _LDBL_MAX(void) {
+SV * _LDBL_MAX(pTHX) {
 #ifdef LDBL_MAX
  return newSVnv(LDBL_MAX);
 #else
@@ -36,7 +38,7 @@ SV * _LDBL_MAX(void) {
 
 /* Minimum normalized positive floating-point number, b**(emin - 1).  */
 
-SV * _LDBL_MIN(void) {
+SV * _LDBL_MIN(pTHX) {
 #ifdef LDBL_MIN
  return newSVnv(LDBL_MIN);
 #else
@@ -52,7 +54,7 @@ SV * _LDBL_MIN(void) {
 	floor((p - 1) * log10(b))	otherwise
 */
 
-SV * _LDBL_DIG(void) {
+SV * _LDBL_DIG(pTHX) {
 #ifdef LDBL_DIG
  return newSViv(LDBL_DIG);
 #else
@@ -62,7 +64,7 @@ SV * _LDBL_DIG(void) {
 
 /* Number of base-FLT_RADIX digits in the significand, p.  */
 
-SV * _LDBL_MANT_DIG(void) {
+SV * _LDBL_MANT_DIG(pTHX) {
 #ifdef LDBL_MANT_DIG
  return newSViv(LDBL_MANT_DIG);
 #else
@@ -72,7 +74,7 @@ SV * _LDBL_MANT_DIG(void) {
 
 /* Minimum int x such that FLT_RADIX**(x-1) is a normalized float, emin */
 
-SV * _LDBL_MIN_EXP(void) {
+SV * _LDBL_MIN_EXP(pTHX) {
 #ifdef LDBL_MIN_EXP
  return newSViv(LDBL_MIN_EXP);
 #else
@@ -82,7 +84,7 @@ SV * _LDBL_MIN_EXP(void) {
 
 /* Maximum int x such that FLT_RADIX**(x-1) is a representable float, emax.  */
 
-SV * _LDBL_MAX_EXP(void) {
+SV * _LDBL_MAX_EXP(pTHX) {
 #ifdef LDBL_MAX_EXP
  return newSViv(LDBL_MAX_EXP);
 #else
@@ -96,7 +98,7 @@ SV * _LDBL_MAX_EXP(void) {
 	ceil(log10(b) * (emin - 1))
 */
 
-SV * _LDBL_MIN_10_EXP(void) {
+SV * _LDBL_MIN_10_EXP(pTHX) {
 #ifdef LDBL_MIN_10_EXP
  return newSViv(LDBL_MIN_10_EXP);
 #else
@@ -110,7 +112,7 @@ SV * _LDBL_MIN_10_EXP(void) {
 	floor(log10((1 - b**-p) * b**emax))
 */
 
-SV * _LDBL_MAX_10_EXP(void) {
+SV * _LDBL_MAX_10_EXP(pTHX) {
 #ifdef LDBL_MAX_10_EXP
  return newSViv(LDBL_MAX_10_EXP);
 #else
@@ -121,7 +123,7 @@ SV * _LDBL_MAX_10_EXP(void) {
 /* The difference between 1 and the least value greater than 1 that is
    representable in the given floating point type, b**1-p.  */
 
-SV * _LDBL_EPSILON(void) {
+SV * _LDBL_EPSILON(pTHX) {
 #ifdef LDBL_EPSILON
  return newSVnv(LDBL_EPSILON);
 #else
@@ -129,7 +131,7 @@ SV * _LDBL_EPSILON(void) {
 #endif
 }
 
-SV * _LDBL_DECIMAL_DIG(void) {
+SV * _LDBL_DECIMAL_DIG(pTHX) {
 #ifdef LDBL_DECIMAL_DIG
  return newSViv(LDBL_DECIMAL_DIG);
 #else
@@ -139,7 +141,7 @@ SV * _LDBL_DECIMAL_DIG(void) {
 
 /* Whether types support subnormal numbers.  */
 
-SV * _LDBL_HAS_SUBNORM(void) {
+SV * _LDBL_HAS_SUBNORM(pTHX) {
 #ifdef LDBL_HAS_SUBNORM
  return newSViv(LDBL_HAS_SUBNORM);
 #else
@@ -149,7 +151,7 @@ SV * _LDBL_HAS_SUBNORM(void) {
 
 /* Minimum positive values, including subnormals.  */
 
-SV * _LDBL_TRUE_MIN(void) {
+SV * _LDBL_TRUE_MIN(pTHX) {
 #ifdef LDBL_TRUE_MIN
  return newSVnv(LDBL_TRUE_MIN);
 #else
@@ -172,60 +174,99 @@ SV * _LDBL_TRUE_MIN(void) {
 
 
 
-MODULE = Data::Float::DoubleDouble	PACKAGE = Data::Float::DoubleDouble	
+MODULE = Data::Float::DoubleDouble	PACKAGE = Data::Float::DoubleDouble
 
 PROTOTYPES: DISABLE
 
 
 SV *
 _FLT_RADIX ()
-		
+CODE:
+  RETVAL = _FLT_RADIX (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MAX ()
-		
+CODE:
+  RETVAL = _LDBL_MAX (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MIN ()
-		
+CODE:
+  RETVAL = _LDBL_MIN (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_DIG ()
-		
+CODE:
+  RETVAL = _LDBL_DIG (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MANT_DIG ()
-		
+CODE:
+  RETVAL = _LDBL_MANT_DIG (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MIN_EXP ()
-		
+CODE:
+  RETVAL = _LDBL_MIN_EXP (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MAX_EXP ()
-		
+CODE:
+  RETVAL = _LDBL_MAX_EXP (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MIN_10_EXP ()
-		
+CODE:
+  RETVAL = _LDBL_MIN_10_EXP (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_MAX_10_EXP ()
-		
+CODE:
+  RETVAL = _LDBL_MAX_10_EXP (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_EPSILON ()
-		
+CODE:
+  RETVAL = _LDBL_EPSILON (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_DECIMAL_DIG ()
-		
+CODE:
+  RETVAL = _LDBL_DECIMAL_DIG (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_HAS_SUBNORM ()
-		
+CODE:
+  RETVAL = _LDBL_HAS_SUBNORM (aTHX);
+OUTPUT:  RETVAL
+
 
 SV *
 _LDBL_TRUE_MIN ()
-		
+CODE:
+  RETVAL = _LDBL_TRUE_MIN (aTHX);
+OUTPUT:  RETVAL
+
 

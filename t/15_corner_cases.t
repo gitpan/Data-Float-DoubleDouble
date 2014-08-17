@@ -1,7 +1,7 @@
 # Check that various cases that will probably not crop up at random (and that might need
 # special handling) are being handled correctly.
 # We check that H_float() correctly reverses float_H($nv) - wrt both the NV and the hex info
-# provided by NV2H($nv). 
+# provided by NV2H($nv).
 
 use strict;
 use warnings;
@@ -367,7 +367,7 @@ for my $v(@variants) {
     $ok = 0;
   }
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -405,7 +405,7 @@ for my $v(@variants) {
     $ok = 0;
   }
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -444,7 +444,7 @@ for my $v(@variants) {
   }
 
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -481,7 +481,7 @@ for my $v(@variants) {
   }
 
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -520,7 +520,7 @@ for my $v(@variants) {
     $ok = 0;
   }
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -558,7 +558,7 @@ for my $v(@variants) {
     $ok = 0;
   }
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -597,7 +597,7 @@ for my $v(@variants) {
   }
 
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -634,7 +634,7 @@ for my $v(@variants) {
   }
 
 
-    
+
 if($ok) {print "ok $t\n"}
 else {print "not ok $t\n"}
 
@@ -645,7 +645,7 @@ else {print "not ok $t\n"}
 $ok = 1;
 $t++;
 
-for my $nv(2 ** - 1074, -(2 ** -1074), 
+for my $nv(2 ** - 1074, -(2 ** -1074),
            (2 ** -1074) + (2 ** -1040),
            -((2 ** -1074) + (2 ** -1040))
           ) {
@@ -682,7 +682,7 @@ else {
 
 $t++;
 
-for my $nv(2 ** - 1074, -(2 ** -1074), 
+for my $nv(2 ** - 1074, -(2 ** -1074),
            (2 ** -1074) + (2 ** -1040),
            -((2 ** -1074) + (2 ** -1040)),
            $biggest_finite,

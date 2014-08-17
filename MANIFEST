@@ -16,3 +16,5 @@ t/17_float_class.t
 t/20_H_float.t
 t/21_H_float_roundup.t
 README
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

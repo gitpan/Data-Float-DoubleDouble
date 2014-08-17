@@ -50,11 +50,11 @@ $Data::Float::DoubleDouble::neg_eps = -(2 ** -1074);
 $Data::Float::DoubleDouble::max_fin =  H2NV('7fefffffffffffff7c8fffffffffffff');
 $Data::Float::DoubleDouble::min_fin = $Data::Float::DoubleDouble::max_fin * -1;
 
-our $VERSION = '1.03';
-$VERSION = eval $VERSION;
+our $VERSION = '1.04';
+#$VERSION = eval $VERSION;
 DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
-#$Data::Float::DoubleDouble::debug = 0; 
+#$Data::Float::DoubleDouble::debug = 0;
 #$Data::Float::DoubleDouble::pack = $Config{nvtype} eq 'double' ? "F<" : "D<";
 
 ### NOTE ###
@@ -155,7 +155,7 @@ sub get_mant_H {
 # 1) sign
 # 2) mantissa (in binary, implicit radix point after first digit)
 # 3) exponent
-# For nan/inf, the mantissa is 'nan' or 'inf' respectively unless 
+# For nan/inf, the mantissa is 'nan' or 'inf' respectively unless
 # 2nd arg is literally 'raw'.
 
 sub float_B {
@@ -184,8 +184,7 @@ sub float_B {
   my $pre2 = hex(substr($hex, 16, 3));
   my $discard = 0;
 
-  my $sign1 = '+';
-  my $sign2 = '+';
+  my ($sign1, $sign2) = ('+', '+');
 
   if($pre1 > 2047) {
     $pre1 -= 2048;
@@ -226,12 +225,14 @@ sub float_B {
 
   my($exp1, $exp2) = ($pre1 - 1023, $pre2 - 1023);
   my $inter_zero = inter_zero($exp1, $exp2);
-  my $zeroes = '0' x $inter_zero;
+  # Need to avoid warning here with 5.22 if $inter_zero < 0.
+  my $zeroes = $inter_zero > 0 ? '0' x $inter_zero
+                               : '';
 
   if($inter_zero < 0) {
     $bin_pre2 = '';
     $inter_zero++;
-    $bin_str2 = substr($bin_str2, $inter_zero * -1);   
+    $bin_str2 = substr($bin_str2, $inter_zero * -1);
   }
 
   my($bin, $pow_adjust);
@@ -241,7 +242,7 @@ sub float_B {
     $bin = $bin_pre1 . $bin_str1 . $zeroes . $bin_pre2 . $bin_str2;
   }
   else {
-    ($bin, $pow_adjust) = _subtract_p($bin_pre1 . $bin_str1, $zeroes . $bin_pre2 . $bin_str2); 
+    ($bin, $pow_adjust) = _subtract_p($bin_pre1 . $bin_str1, $zeroes . $bin_pre2 . $bin_str2);
   }
 
   my $single_exp = $pre1 - 1023 - $pow_adjust;
@@ -290,7 +291,7 @@ sub float_H {
 
   if($mant eq 'nan') {
     $sign eq '-' ? return '-nan'
-                 : return '+nan'; 
+                 : return '+nan';
   }
   if($mant eq 'inf') {
     $sign eq '-' ? return '-inf'
@@ -310,7 +311,7 @@ sub float_H {
 
   my $prefix = $sign . '0x' . substr($mant, 0, 1, '') . '.';
 
- 
+
   $mant .= '0' while length($mant) % 4;
 
   #my $H_items = length($mant) / 4;
@@ -507,7 +508,7 @@ sub are_inf {
   for(@_) {
     if($_ == 0 || $_ / $_ == 1 || $_ != $_) {
       return 0;
-    } 
+    }
   }
 
   return 1;
@@ -525,7 +526,7 @@ sub are_nan {
   }
 
   return 1;
-  
+
 }
 
 ##############################
@@ -599,7 +600,7 @@ sub valid_hex {
   }
 
   if(($mant !~ /[^0]/ && $prefix =~ /0\.$/) || $exp < -1074) {
-    my $ret = $sign eq '-' 
+    my $ret = $sign eq '-'
       ? '-0x0.000000000000000000000000000p-1022'
       : '+0x0.000000000000000000000000000p-1022';
     die "Wanting to return a different zero format"
@@ -608,7 +609,7 @@ sub valid_hex {
   }
 
   return $sign . $prefix . $mant . 'p' . $exp;
-  
+
 }
 
 
@@ -616,7 +617,7 @@ sub valid_hex {
 # Verify that the given argument is a valid 'unpack' format - such as
 # retured by NV2H. That is, check that it consists only of valid hex
 # characters and that there are 32 of them.
-# If there's less than 32 of them, either die (if $die is set) or 
+# If there's less than 32 of them, either die (if $die is set) or
 # append zeroes until the length is 32 (if $die is not set).
 
 sub valid_unpack {
@@ -734,7 +735,7 @@ sub _subtract_b {
     die "_subtract_b returned wrong value: $ret"
       if length $ret != $len1;
 
-    return $ret;    
+    return $ret;
 
 }
 
@@ -751,7 +752,7 @@ sub _subtract_p {
     my $len3 = $len1 + $len2;
     my $overflow = 0;
 
-    if($bin_str1 eq '1'. ('0' x 52)) {$overflow = 1}  
+    if($bin_str1 eq '1'. ('0' x 52)) {$overflow = 1}
 
     $bin_str1 .= '0' x $len2;
     $bin_str2 = 0 x $len1 . $bin_str2;
@@ -783,7 +784,7 @@ sub _subtract_p {
       return (substr($ret, 1), 1);
     }
 
-    return ($ret, 0);    
+    return ($ret, 0);
 
 }
 
@@ -837,7 +838,7 @@ sub _calculate {
 ##############################
 ##############################
 # Increment a binary string.
-# Length of returned string will be either $len or $len+1 
+# Length of returned string will be either $len or $len+1
 
 sub _add_1 {
   my $mant = shift;
@@ -858,7 +859,7 @@ sub _add_1 {
 
   $ret = '1' . $ret if $carry;
 
-  return $ret; 
+  return $ret;
 }
 
 ##############################
@@ -909,7 +910,7 @@ sub _get_biggest {
   my $nv1 = 0;
 
   # The order is important !!
-  # Doing (917 .. 969, 971 .. 1023) will not work 
+  # Doing (917 .. 969, 971 .. 1023) will not work
   for(971 .. 1023, 917 .. 969) {
     $nv1 += 2 ** $_;
   }
@@ -1095,13 +1096,13 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    Unpacks the NV to a string of 32 hex characters.
    The first 16 characters relate to the value of the most significant
    double:
-    Characters 1 to 3 (incl) embody the sign of the mantissa, the value 
+    Characters 1 to 3 (incl) embody the sign of the mantissa, the value
     of the exponent, and the value (0 or 1) of the implied leading bit.
     Characters 4 to 16 (incl) embody the value of the 52-bit mantissa.
 
    The second 16 characters (17 to 32) relate to the value of the least
    siginificant double:
-    Characters 17 to 19 (incl) embody the sign of the mantissa, the 
+    Characters 17 to 19 (incl) embody the sign of the mantissa, the
     value of the exponent, and the value (0 or 1) of the implied
     leading bit.
     Characters 20 to 32 (incl) embody the value of the 52-bit mantissa.
@@ -1167,7 +1168,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
 
    For $hex written in the format returned by float_H(), returns
    the NV that corresponds to $hex.
-  #############################################  
+  #############################################
   @bin = float_B($nv);
 
    Returns the sign, the mantissa (as a base 2 string), and the
@@ -1201,7 +1202,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    Returns an array of the two 52-bit mantissa components of
    the two doubles in their hex form. The values of the
    implied leading (most significant) bits are not provided,
-   nor are the values of the two exponents. 
+   nor are the values of the two exponents.
   #############################################
   $intermediate_zeroes = inter_zero(get_exp($nv));
 
@@ -1232,7 +1233,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    32 of them, either die (if $die is set) or append zeroes until
    the length is 32 (if $die is not set).
    If the string was modified, return that modified string - else
-   return the 1st arg. 
+   return the 1st arg.
   #############################################
   @bin = valid_bin($sign, $mantissa, $exponent [,$die]);
 
@@ -1276,7 +1277,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
   $bool = float_is_nan($nv); # Alias for are_nan()
 
    Returns true if $nv is a NaN.
-   Else returns false. 
+   Else returns false.
   #############################################
   $bool = float_is_infinite($nv); # Alias for are_inf()
 
@@ -1356,7 +1357,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
 
 =head1 LICENSE
 
-   This program is free software; you may redistribute it and/or 
+   This program is free software; you may redistribute it and/or
    modify it under the same terms as Perl itself.
    Copyright 2014 Sisyphus
 

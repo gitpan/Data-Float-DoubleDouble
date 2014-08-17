@@ -39,21 +39,21 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
       $ok = 0;
       $count++;
       warn "$str: sign: $bin[0] $check[0]\n"
-        unless $count > 10; 
+        unless $count > 10;
     }
 
     if($check[1] ne $bin[1]) {
       $ok = 0;
       $count++;
       warn "$str: mant:\n$bin[1]\n$check[1]\n"
-        unless $count > 10; 
+        unless $count > 10;
     }
 
     if($check[2] ne $bin[2]) {
       $ok = 0;
       $count++;
       warn "$str: exp: $bin[2] $check[2]\n"
-        unless $count > 10; 
+        unless $count > 10;
     }
 
   }
@@ -91,21 +91,21 @@ for my $exp(298 .. 304) {
     $ok = 0;
     $count++;
     warn "$str: sign: $bin[0] $check[0]\n"
-      unless $count > 10; 
+      unless $count > 10;
   }
 
   if($check[1] ne $bin[1]) {
     $ok = 0;
     $count++;
     warn "$str: mant:\n$bin[1]\n$check[1]\n"
-      unless $count > 10; 
+      unless $count > 10;
   }
 
   if($check[2] ne $bin[2]) {
     $ok = 0;
     $count++;
     warn "$str: exp: $bin[2] $check[2]\n"
-      unless $count > 10; 
+      unless $count > 10;
   }
 
 }
@@ -153,21 +153,21 @@ for my $exp(0..10, 20, 30, 280 .. 300) {
       $ok = 0;
       $count++;
       warn "$str: sign: $bin[0] $check[0]\n"
-        unless $count > 10; 
+        unless $count > 10;
     }
 
     if($check[1] ne $bin[1]) {
       $ok = 0;
       $count++;
       warn "$str: mant:\n$bin[1]\n$check[1]\n"
-        unless $count > 10; 
+        unless $count > 10;
     }
 
     if($check[2] ne $bin[2]) {
       $ok = 0;
       $count++;
       warn "$str: exp: $bin[2] $check[2]\n"
-        unless $count > 10; 
+        unless $count > 10;
     }
 
   }
@@ -205,21 +205,21 @@ for my $exp(298 .. 304) {
     $ok = 0;
     $count++;
     warn "$str: sign: $bin[0] $check[0]\n"
-      unless $count > 10; 
+      unless $count > 10;
   }
 
   if($check[1] ne $bin[1]) {
     $ok = 0;
     $count++;
     warn "$str: mant:\n$bin[1]\n$check[1]\n"
-      unless $count > 10; 
+      unless $count > 10;
   }
 
   if($check[2] ne $bin[2]) {
     $ok = 0;
     $count++;
     warn "$str: exp: $bin[2] $check[2]\n"
-      unless $count > 10; 
+      unless $count > 10;
   }
 
 }

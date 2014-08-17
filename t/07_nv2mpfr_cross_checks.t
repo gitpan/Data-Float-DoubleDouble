@@ -41,7 +41,7 @@ for my $v(@variants) {
   @curr = ('+', '+') if $v == 4;
 #################################
 
-  
+
 
 for my $exp(0..10, 20, 30, 280 .. 300) {
   for my $digits(1..15) {
@@ -175,7 +175,7 @@ for my $exp(298 .. 304) {
      }
   }
 
-  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd); 
+  my @out = Math::MPFR::Rmpfr_deref2($fr, 2, 0, $rnd);
     if($out[0] =~ /^\-/) {
     $fr_sign = '-';
     $out[0] =~ s/^\-//;
@@ -202,7 +202,7 @@ for my $exp(298 .. 304) {
 
   # M::MPFR and D::F::DD position the implied radix point differently
   # (off by one), so we need to cater for that when comparing results.
-  # But we need to apply a different adjustment, depending upon whether 
+  # But we need to apply a different adjustment, depending upon whether
   # the most siginifcant NV is de-normalised or not.
   if($exp =~ /^1/) {
     $out[1]--;
@@ -212,7 +212,7 @@ for my $exp(298 .. 304) {
     $out[0] = ('0' x $zeroes) . $out[0];
     $out[1] = $exp;
   }
- 
+
   # Also M::MPFR may have leading zeroes that D:::F::DD does not, hence:
   #if($exp > $out[1]) {
   #  warn "\n$str\n\$exp: $exp \$out[1]: $out[1]\n";
@@ -231,7 +231,7 @@ for my $exp(298 .. 304) {
       warn "\n$t: exp mismatch: $exp $out[1]\n" unless $count > 10;
       $ok = 0;
     }
-  }    
+  }
 }
 
 if($ok) {print "ok $t\n"}
