@@ -16,4 +16,4 @@ no_index:
     - inc
 resources:
   repository: https://github.com/sisyphus/data-float-doubledouble.git
-version: 1.04
+version: 1.05

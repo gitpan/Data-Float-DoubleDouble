@@ -1,5 +1,8 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.05
+   - Add DD2HEX and std_float_H functions.
+
 1.04
     - Add some metadata to Makefile.PL.
     - Small rewrite of float_B to avoid new warning scheduled for 5.22

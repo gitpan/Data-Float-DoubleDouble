@@ -7,7 +7,6 @@
 
 #define PERL_NO_GET_CONTEXT 1
 
-
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -159,22 +158,25 @@ SV * _LDBL_TRUE_MIN(pTHX) {
 #endif
 }
 
+void DD2HEX(pTHX_ SV * nv, char * fmt) {
+ dXSARGS;
+ char * buffer;
+
+ if(!strEQ(fmt, "%La") && !strEQ(fmt, "%LA"))
+   croak("Second arg to DD2HEX is %s - but needs to be either \"%La\" or \"%LA\"", fmt);
+
+ Newx(buffer, 40, char);
+ if(buffer == NULL) croak("Failed to allocate memory in DD2HEX");
+
+ sprintf(buffer, fmt, (long double)SvNV(nv));
+ EXTEND(SP, 1);
+ ST(0) = sv_2mortal(newSVpv(buffer, 0));
+ Safefree(buffer);
+ XSRETURN(1);
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-MODULE = Data::Float::DoubleDouble	PACKAGE = Data::Float::DoubleDouble
+MODULE = Data::Float::DoubleDouble  PACKAGE = Data::Float::DoubleDouble
 
 PROTOTYPES: DISABLE
 
@@ -269,4 +271,21 @@ CODE:
   RETVAL = _LDBL_TRUE_MIN (aTHX);
 OUTPUT:  RETVAL
 
+
+void
+DD2HEX (nv, fmt)
+	SV *	nv
+	char *	fmt
+        PREINIT:
+        I32* temp;
+        PPCODE:
+        temp = PL_markstack_ptr++;
+        DD2HEX(aTHX_ nv, fmt);
+        if (PL_markstack_ptr != temp) {
+          /* truly void, because dXSARGS not invoked */
+          PL_markstack_ptr = temp;
+          XSRETURN_EMPTY; /* return empty stack */
+        }
+        /* must have used dXSARGS; list context implied */
+        return; /* assume stack size is correct */
 

@@ -17,8 +17,8 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
  DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN
- NV2H H2NV D2H H2D get_sign
- get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
+ NV2H H2NV D2H H2D DD2HEX std_float_H
+ get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
  float_H2B B2float_H standardise_bin_mant hex_float float_hex float_B B_float
  valid_hex valid_bin valid_unpack
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
@@ -29,7 +29,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
  DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN
- NV2H H2NV D2H H2D
+ NV2H H2NV D2H H2D DD2HEX std_float_H
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
  float_H2B B2float_H standardise_bin_mant float_hex hex_float float_B B_float
  valid_hex valid_bin valid_unpack
@@ -50,7 +50,7 @@ $Data::Float::DoubleDouble::neg_eps = -(2 ** -1074);
 $Data::Float::DoubleDouble::max_fin =  H2NV('7fefffffffffffff7c8fffffffffffff');
 $Data::Float::DoubleDouble::min_fin = $Data::Float::DoubleDouble::max_fin * -1;
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 #$VERSION = eval $VERSION;
 DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
@@ -274,6 +274,8 @@ sub B_float {
 # '+' or '-' as appropriate) unless an additional arg of 'raw'
 # has been provided - in which case it does the calculations
 # and returns the hex string it has calculated.
+# This function returns a hex representation of the *actual*
+# value - even if that value requires more than 106 bits.
 
 sub float_H {
   my ($sign, $mant, $exp);
@@ -322,6 +324,31 @@ sub float_H {
   my $suffix = "p$exp";
 
   return $prefix . $middle . $suffix;
+}
+
+##############################
+##############################
+
+sub std_float_H {
+  my $str = float_H($_[0]);
+  $str =~ s/^\+//;
+
+  if($_[1] eq "%La") {
+    $str =~ s/p/p\+/ unless $str =~ /p\-/;
+    $str =~ s/0+p/p/;
+    $str =~ s/\.p/p/;
+    $str =~ s/0x0p.+/0x0p+0/; # for zero, replace existing exponent with '+0'
+    return $str;
+  }
+  if($_[1] eq "%LA") {
+    $str = uc($str);
+    $str =~ s/P/P\+/ unless $str =~ /P\-/;
+    $str =~ s/0+P/P/;
+    $str =~ s/\.P/P/;
+    $str =~ s/0X0P.+/0X0P+0/; # for zero, replace existing exponent with '+0'
+    return $str;
+  }
+  die "Second arg to std_float_H is $_[1] but needs to be either \"%La\" or \"%LA\"";
 }
 
 ##############################
@@ -1127,7 +1154,8 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    For $hex written in the format returned by D2H, H2D($hex) returns
    the NV.
   #############################################
-  $readable_hex = float_H($nv); # Aliased to float_hex
+  $readable_hex = float_H($nv, $opt); # Aliased to float_hex
+                                           # $opt is optional
 
    For *most* NVs, returns a 106-bit hex representation of the NV
    (long double) $nv in the format
@@ -1162,6 +1190,40 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
         for the first and the last). When you add the sign, radix
         point, exponent, etc., the float_H representation of that
         value consists of 535 characters.
+
+   If a second arg is provided, it must be the string 'raw' - in
+   which case infs/nans will be returned in hex format instead of
+   as "inf"/"nan" strings.
+
+  #############################################
+
+  $readable_hex = DD2HEX($nv, $fmt);
+
+   As for float_H, but uses C's sprintf() function to do the
+   conversion to the hex string. The second arg ($fmt) can be either
+   "%La" (in which case the alphabetic characters will be lower
+   case) or "%LA" (in which case the alphabetic characters will be
+   upper case).
+   Unlike float_H, this function cannot take the 'raw' argument.
+   And, unlike float_H, this function will not return values that
+   require more than 106 bits to be expressed.
+
+  #############################################
+
+  $standardised_readable_hex = std_float_H($nv, $fmt);
+
+   As for float_H, but standardises the format to be the same as I
+   get for DD2HEX. That is, there's no leading + for positive
+   values, positive and zero exponents are prefixed with a +,
+   trailing zeroes in the mantissa are removed, and zeroes are
+   presented as (-)0x0p+0 or (-)0X0P+0. As for DD2HEX, the second
+   arg ($fmt) can be either "%La" or "%LA" (nothing else) and that
+   determines whether the alphabetic characters are lower case or
+   upper case.
+   Unlike float_H, this function cannot take the 'raw' argument.
+   Like float_H it will, however, accurately express the value
+   that's encapsulated in the double-double (even though that
+   minimum may exceed the usual 27 hex digits).
 
   #############################################
   $nv = H_float($hex);
