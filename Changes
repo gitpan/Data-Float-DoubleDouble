@@ -1,5 +1,8 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.06
+   - Add NV2binary and express() functions.
+
 1.05
    - Add DD2HEX and std_float_H functions.
 

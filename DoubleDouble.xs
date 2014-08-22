@@ -175,6 +175,92 @@ void DD2HEX(pTHX_ SV * nv, char * fmt) {
  XSRETURN(1);
 }
 
+int _isnan_ld (long double d) {
+  if(d == d) return 0;
+  return 1;
+}
+
+void _NV2binary (pTHX_ SV * nv) {
+
+  dXSARGS;
+  long double d = (long double)SvNV(nv);
+  long double e;
+  int exp = 1;
+  unsigned long int prec = 0;
+  int returns = 0;
+
+  sp = mark;
+
+  if(_isnan_ld(d)) {
+      XPUSHs(sv_2mortal(newSVpv("+nan", 0)));
+      XPUSHs(sv_2mortal(newSViv(exp)));
+      XPUSHs(sv_2mortal(newSViv(prec)));
+      XSRETURN(3);
+  }
+
+  if (d < (long double) 0.0 || (d == (long double) 0.0 && (1.0 / (double) d < 0.0))) {
+      XPUSHs(sv_2mortal(newSVpv("-", 0)));
+      d = -d;
+  }
+  else XPUSHs(sv_2mortal(newSVpv("+", 0)));
+  returns++;
+
+  /* now d >= 0 */
+  /* Use 2 differents tests for Inf, to avoid potential bugs
+     in implementations. */
+  if (_isnan_ld (d - d) || (d > 1 && d * 0.5 == d)) {
+      XPUSHs(sv_2mortal(newSVpv("inf", 0)));
+      XPUSHs(sv_2mortal(newSViv(exp)));
+      XPUSHs(sv_2mortal(newSViv(prec)));
+      returns += 3;
+      XSRETURN(returns);
+  }
+
+  if (d == (long double) 0.0) {
+      XPUSHs(sv_2mortal(newSVpv("0.0", 0)));
+      XPUSHs(sv_2mortal(newSViv(exp)));
+      XPUSHs(sv_2mortal(newSViv(prec)));
+      returns += 3;
+      XSRETURN(returns);
+  }
+
+  /* now d > 0 */
+  e = (long double) 1.0;
+  while (e > d) {
+      e = e * (long double) 0.5;
+      exp --;
+  }
+
+  /* now d >= e */
+  while (d >= e + e) {
+      e = e + e;
+      exp ++;
+  }
+
+  /* now e <= d < 2e */
+  XPUSHs(sv_2mortal(newSVpv("0.", 0)));
+  returns ++;
+
+  while (d > (long double) 0.0) {
+      prec++;
+      if(d >= e) {
+        XPUSHs(sv_2mortal(newSVpv("1", 0)));
+        returns ++;
+        d = (long double) ((long double) d - (long double) e);
+      }
+      else {
+        XPUSHs(sv_2mortal(newSVpv("0", 0)));
+        returns ++;
+      }
+      e *= (long double) 0.5;
+  }
+
+  XPUSHs(sv_2mortal(newSViv(exp)));
+  XPUSHs(sv_2mortal(newSViv(prec)));
+  returns += 2;
+  XSRETURN(returns);
+}
+
 
 MODULE = Data::Float::DoubleDouble  PACKAGE = Data::Float::DoubleDouble
 
@@ -281,6 +367,22 @@ DD2HEX (nv, fmt)
         PPCODE:
         temp = PL_markstack_ptr++;
         DD2HEX(aTHX_ nv, fmt);
+        if (PL_markstack_ptr != temp) {
+          /* truly void, because dXSARGS not invoked */
+          PL_markstack_ptr = temp;
+          XSRETURN_EMPTY; /* return empty stack */
+        }
+        /* must have used dXSARGS; list context implied */
+        return; /* assume stack size is correct */
+
+void
+_NV2binary (nv)
+	SV *	nv
+        PREINIT:
+        I32* temp;
+        PPCODE:
+        temp = PL_markstack_ptr++;
+        _NV2binary(aTHX_ nv);
         if (PL_markstack_ptr != temp) {
           /* truly void, because dXSARGS not invoked */
           PL_markstack_ptr = temp;

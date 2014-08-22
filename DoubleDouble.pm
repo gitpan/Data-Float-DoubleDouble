@@ -20,7 +20,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  NV2H H2NV D2H H2D DD2HEX std_float_H
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
  float_H2B B2float_H standardise_bin_mant hex_float float_hex float_B B_float
- valid_hex valid_bin valid_unpack
+ valid_hex valid_bin valid_unpack express NV2binary
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
  float_is_normal float_is_subnormal float_class
  nextafter nextup nextdown);
@@ -32,7 +32,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  NV2H H2NV D2H H2D DD2HEX std_float_H
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
  float_H2B B2float_H standardise_bin_mant float_hex hex_float float_B B_float
- valid_hex valid_bin valid_unpack
+ valid_hex valid_bin valid_unpack express NV2binary
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
  float_is_normal float_is_subnormal float_class
  nextafter nextup nextdown)]);
@@ -50,7 +50,7 @@ $Data::Float::DoubleDouble::neg_eps = -(2 ** -1074);
 $Data::Float::DoubleDouble::max_fin =  H2NV('7fefffffffffffff7c8fffffffffffff');
 $Data::Float::DoubleDouble::min_fin = $Data::Float::DoubleDouble::max_fin * -1;
 
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 #$VERSION = eval $VERSION;
 DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
@@ -106,7 +106,7 @@ sub H2D {
 
 ##############################
 ##############################
-# A function to get the sign(s) of the NV
+# A function to return the signs of the NV
 
 sub get_sign {
 
@@ -120,6 +120,7 @@ sub get_sign {
 
 ##############################
 ##############################
+# A function to return the exponents of the NV
 
 sub get_exp {
 
@@ -131,8 +132,8 @@ sub get_exp {
   $exp1 -= 2048 if $exp1 > 2047; # Remove sign bit
   $exp2 -= 2048 if $exp2 > 2047; # Remove sign bit
 
-  $exp1++ unless $exp1;
-  $exp2++ unless $exp2;
+  $exp1++ unless $exp1; # increment if 0
+  $exp2++ unless $exp2; # increment if 0
 
   return ($exp1 - 1023, $exp2 - 1023);
 
@@ -140,7 +141,9 @@ sub get_exp {
 
 ##############################
 ##############################
-# Return the mantissas of the 2 doubles.
+# Return the (hex) mantissas of the 2 doubles.
+# Does not return the leading (implied) bit, but
+# returns the hex representation of the next 52 bits.
 
 sub get_mant_H {
 
@@ -257,7 +260,27 @@ sub float_B {
 
 ##############################
 ##############################
+# Return a 3-element list for the given double-double:
+# 1) sign
+# 2) mantissa (in binary, implicit radix point after first digit)
+# 3) exponent
+# For nan/inf, the mantissa is 'nan' or 'inf' respectively.
+
+sub NV2binary {
+  my @ret = _NV2binary($_[0]);
+  my $prec = pop(@ret);
+  my $exp = pop(@ret);
+  my $mantissa = join '', @ret;
+  my $sign = substr($mantissa, 0, 1, '');
+  $mantissa =~ s/0\.//;
+  $exp--; # because we've right shifted the radix point by one place.
+  return ($sign, $mantissa, $exp);
+}
+
+##############################
+##############################
 # Return the NV from the binary pepresentation (sign, mantissa, exponent).
+# Optionally takes a 4th arg of 'raw'.
 
 sub B_float {
   die "Wrong number of args to B_float (", scalar @_, ")"
@@ -316,9 +339,6 @@ sub float_H {
 
   $mant .= '0' while length($mant) % 4;
 
-  #my $H_items = length($mant) / 4;
-  #my $middle = unpack "H$H_items", pack "B*", $mant;
-
   my $middle = _bin2hex($mant);
 
   my $suffix = "p$exp";
@@ -328,6 +348,8 @@ sub float_H {
 
 ##############################
 ##############################
+# Standardise the float_H output to match the "%La" or "%LA" format
+# that C provides on my machine.
 
 sub std_float_H {
   my $str = float_H($_[0]);
@@ -387,6 +409,8 @@ sub H_float {
     my $s = $sign eq '-' ? -1.0 : 1.0;
     my @d = _calculate($mant, $exp);
     if($d[0] == 0 && $sign eq '-') {
+      # return -ve zero ... but "return -0.0;" might not work,
+      # on all perls so we do it this way:
       return H2NV('80000000000000000000000000000000');
     }
     return $d[0] * $s;
@@ -413,6 +437,8 @@ sub H_float {
     my ($d2, $discard) = _calculate($m, $exponent);
 
     if($d1 - $d2 == 0 && $sign eq '-') {
+      # return -ve zero ... but "return -0.0;" might not work
+      # on all perls so we do it this way:
       return H2NV('80000000000000000000000000000000');
     }
     return ($d1 - $d2) * $s;
@@ -851,8 +877,7 @@ sub _calculate {
     my $exp = $_[1];
     my $ret = 0;
 
-    my $binlen = length($bin);
-    $binlen--;
+    my $binlen = length($bin) - 1;
 
     for my $pos(0 .. $binlen) {
       $ret += substr($bin, $pos, 1) ? 2 ** $exp : 0;
@@ -948,6 +973,53 @@ sub _get_biggest {
 
 ##############################
 ##############################
+# An alternative way of assessing the value of the double-double.
+# Express the double as msd + lsd, where the 2 doubles (msd and lsd)
+# are written in scientic notation. The doubles will be written in
+# decimal format unless a second arg of 'h' or 'H' is provided - in
+# which case they will be written in hex format.
+
+sub express {
+  my $do_hex = @_ == 2 ? lc($_[1]) eq 'h' ? $_[1]
+                                          : undef
+                       : @_ == 1 ? 0
+                                 : undef;
+
+  die "Bad arg(s) supplied to express()" unless defined $do_hex;
+
+  my($ret1, $ret2);
+  my($m1, $m2, $m3) = ('0+e', '\.e', 'e');
+  if($do_hex) {
+    $m1 = '0+p';
+    $m2 = '\.p';
+    $m3 = 'p';
+  }
+  my $hex = NV2H(shift);
+  my $lsd = '0' x 16;
+  my $msdd = substr($hex, 0, 16) . $lsd;
+  my $lsdd = substr($hex, 16, 16) . $lsd;
+
+  if($do_hex) {
+    $ret1 = float_H(H2NV($msdd));
+    $ret2 = float_H(H2NV($lsdd));
+  }
+  else {
+    $ret1 = H2NV($msdd);
+    $ret2 = H2NV($lsdd);
+  }
+
+  my $sign = H2NV($lsdd) >= 0 ? ' + ' : '';
+  $ret2 =~ s/^\-/ - /;
+  $ret2 =~ s/^\+//;
+  $ret1 =~ s/$m1/$m3/;
+  $ret2 =~ s/$m1/$m3/;
+  $ret1 =~ s/$m2/$m3/;
+  $ret2 =~ s/$m2/$m3/;
+  my $ret = $do_hex eq 'H' ? uc("$ret1$sign$ret2")
+                           : "$ret1$sign$ret2";
+  return $ret;
+}
+
 
 ##############################
 ##############################
@@ -1118,6 +1190,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
 =head1 FUNCTIONS
 
   #############################################
+
   $hex = NV2H($nv);
 
    Unpacks the NV to a string of 32 hex characters.
@@ -1135,12 +1208,16 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
     Characters 20 to 32 (incl) embody the value of the 52-bit mantissa.
 
    For a more human-readable hex representation, use float_H().
+
   #############################################
+
   $nv = H2NV($hex);
 
    For $hex written in the format returned by NV2H, H2NV($hex)
    returns the NV.
+
   #############################################
+
   $hex = D2H($nv);
 
    Treats the NV as a double and returns a string of 16 hex characters.
@@ -1148,12 +1225,16 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    (0 or 1) of the implied leading bit and the value of the exponent.
    Characters 4 to 16 (incl) embody the value of the 52-bit mantissa
    of the first double.
+
   #############################################
-  $nv = H2D($hex);
+
+  $nv = H2D($hex, $opt); # Second arg is optional
 
    For $hex written in the format returned by D2H, H2D($hex) returns
    the NV.
+
   #############################################
+
   $readable_hex = float_H($nv, $opt); # Aliased to float_hex
                                            # $opt is optional
 
@@ -1226,63 +1307,117 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    minimum may exceed the usual 27 hex digits).
 
   #############################################
+
+  $readable = express($nv, $opt); # $opt is an optional arg.
+
+   An alternative way of assessing the value of the double-double.
+   Express the double as msd + lsd, where the 2 doubles (msd and lsd)
+   are written in scientic notation. The doubles will be written in
+   decimal format unless a second arg of 'h' or 'H' is provided - in
+   which case they will be written in hex format.
+   The second arg ($opt), if provided, must be either 'h' or 'H'.
+
+  #############################################
+
   $nv = H_float($hex);
 
    For $hex written in the format returned by float_H(), returns
    the NV that corresponds to $hex.
   #############################################
-  @bin = float_B($nv);
+  @bin = float_B($nv, $opt); # Second arg isoptional
 
    Returns the sign, the mantissa (as a base 2 string), and the
    exponent of $nv. (There's an implied radix point between the
    first and second digits of the mantissa).
+   For nan/inf, the mantissa is 'nan' or 'inf' respectively unless
+   2nd arg is literally 'raw' - in which case it will be a base 2
+   version of the nan/inf encoding.
+
   #############################################
-  @bin = float_H2B($hex);
+
+  @bin = float_H2B($hex, $opt); # Second arg is optional
 
    As for the above float_B() function - but takes the hex
    string of the NV (as returned by float_H) as its argument,
    instead of the actual NV.
    For a more direct way of obtaining the array, use float_B
    instead.
+   If a second arg is provided, it must be the string 'raw' - in
+   which case inf/nan mantissas will be returned in hex format
+   instead of as "inf"/"nan" strings.
+
   #############################################
-  $hex = B2float_H(@bin);
+
+  @bin = NV2binary($nv);
+
+   Another way of arriving at (almost) the same binary representation
+   of the NV -ie as an array consisting of (sign, mantissa, exponent).
+   The mantissa if Infs and NaNs will be returned as 'inf' or 'nan'
+   respectively and the sign associated with the nan will always
+   be '+'.
+   With this function, trailing zeroes are stripped from the mantissa
+   and exponents for 0, inf and nan might not match the other binary
+   representations.
+   This function is based on code from the mpfr library's
+   tests/tset_ld.c file.
+
+  #############################################
+
+  $hex = B2float_H(@bin, $opt); # $opt is an optional arg
 
    The reverse of float_H2B. It takes the array returned by
    either float_B or float_H2B as its arguments, and returns
    the corresponding hex form.
+   If $opt is provided and is the string 'raw', the actual
+   hex encoding of any nan/inf will be returned - instead of
+   the string "inf" or "nan" respectively.
+
   #############################################
+
   ($sign1, $sign2) = get_sign($nv);
 
    Returns the signs of the two doubles contained in $nv.
+
   #############################################
+
   ($exp1, $exp2) = get_exp($nv);
 
    Returns the exponents of the two doubles contained in $nv.
+
   #############################################
+
   ($mantissa1, $mantissa2) = get_mant_H(NV2H($nv));
 
    Returns an array of the two 52-bit mantissa components of
    the two doubles in their hex form. The values of the
    implied leading (most significant) bits are not provided,
    nor are the values of the two exponents.
+
   #############################################
+
   $intermediate_zeroes = inter_zero(get_exp($nv));
 
    Returns the number of zeroes that need to come between the
    mantissas of the 2 doubles when $nv is translated to the
    representation that float_H() returns.
+
   #############################################
+
   $bool = are_inf(@nv); # Aliased to float_is_infinite.
 
    Returns true if and only if all of the (NV) arguments are
    infinities.
    Else returns false.
+
   #############################################
+
   $bool = are_nan(@nv); # Aliased to float_is_nan.
 
    Returns true if and only if all of the (NV) arguments are
    NaNs. Else returns false.
+
   #############################################
+
   $hex = valid_unpack($string [,$die]); # 2nd arg optional
 
    Verify that the 1st arg is a valid 'unpack' format - such as
@@ -1296,7 +1431,9 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    the length is 32 (if $die is not set).
    If the string was modified, return that modified string - else
    return the 1st arg.
+
   #############################################
+
   @bin = valid_bin($sign, $mantissa, $exponent [,$die]);
 
    Checks and returns a validated binary format (sign,
@@ -1313,7 +1450,9 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
     2) Append zeroes to $mantissa if there are too few
        characters.
    Return $sign, $mantissa, $exponent.
+
   #############################################
+
   $hex = valid_hex($float_string [,$die]);
 
    Checks and returns a validated hex format - such as that
@@ -1325,53 +1464,71 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
     2) Append zeroes if there are too few characters.
    If the string was modified, return that modified string - else
    return the 1st arg.
+
   #############################################
 
   For Compatibility with Data::Float:
 
   #############################################
+
   $class = float_class($nv);
 
    Returns one of either "NAN", "INFINITE", "ZERO", "NORMAL"
    or "SUBNORMAL" - whichever is appropriate. (The NV must
    belong to one (and only one) class.
+
   #############################################
+
   $bool = float_is_nan($nv); # Alias for are_nan()
 
    Returns true if $nv is a NaN.
    Else returns false.
+
   #############################################
+
   $bool = float_is_infinite($nv); # Alias for are_inf()
 
    Returns true if $nv is infinite.
    Else returns false.
+
   #############################################
+
   $bool = float_is_finite($nv);
 
    Returns true if NV is neither infinite nor a NaN.
    Else returns false.
+
   #############################################
+
   $bool = float_is_nzfinite($nv);
 
    Returns true if NV is neither infinite, nor a NaN, nor zero.
    Else returns false.
+
   #############################################
+
   $bool = float_is_zero($nv);
 
    Returns true if NV is zero.
    Else returns false.
+
   #############################################
+
   $bool = float_is_normal($nv);
 
    Returns true if NV is finite && non-zero && the implied
    leading digit in its internal representation is '1'.
    Else returns false.
+
   #############################################
+
   $bool = float_is_subnormal($nv);
 
    Returns true if NV is finite && non-zero && the implied
    leading digit in its internal representation is '0'.
+
   #############################################
+
   $nv = nextafter($nv1, $nv2);
 
    $nv1 and $nv2 must both be floating point values. Returns the
@@ -1383,7 +1540,9 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    negative smallest representable finite values. If a zero is returned
    then it has the same sign as $nv1. Returns
    NaN if either argument is a NaN.
+
   #############################################
+
   $nv = nextup($nv1);
 
    $nv1 must be a floating point value. Returns the next representable
@@ -1396,7 +1555,9 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    returned, because $nv1 is the smallest representable negative
    value, and zeroes are signed, it is a negative zero that is
    returned. Returns NaN if $nv1 is a NaN.
+
   #############################################
+
   $nv = nextdown($nv1);
 
    $nv1 must be a floating point value. Returns the next representable
@@ -1409,6 +1570,7 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    $nv is the smallest representable positive value, and zeroes are
    signed, it is a positive zero that is returned. Returns NaN if VALUE
    is a NaN.
+
   #############################################
   #############################################
 

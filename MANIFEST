@@ -10,6 +10,8 @@ t/04_validate.t
 t/05_DD.t
 t/06_DD2HEX.t
 t/07_nv2mpfr_cross_checks.t
+t/08_express.t
+t/09_NV2binary.t
 t/11_float_H_B.t
 t/15_corner_cases.t
 t/16_inf_nan_zero.t
