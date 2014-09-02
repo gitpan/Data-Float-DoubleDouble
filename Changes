@@ -1,5 +1,11 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.07
+   - Change template for NV2H() and H2NV() from "D<" to "F<", and provide LD2H() and
+     H2LD() - which use the "D<" template.
+   - Rewrite _calculate as an XSub. (I don't trust perl to be always capable of calculating
+     2 ** k correctly.)
+
 1.06
    - Add NV2binary and express() functions.
 

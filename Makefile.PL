@@ -29,6 +29,7 @@ my %h = (
   NAME => 'Data::Float::DoubleDouble',
   VERSION_FROM => 'DoubleDouble.pm',
   PREREQ_PM => {'Math::NV' => '0.02'},
+  LIBS => ['-lm'],
   LICENSE  => 'perl',
   META_MERGE => {
    'meta-spec' => { version => 2 },

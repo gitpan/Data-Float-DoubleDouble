@@ -11,7 +11,7 @@ if($@) {
 }
 else {print "ok 1\n"}
 
-if($Data::Float::DoubleDouble::VERSION eq '1.06') {
+if($Data::Float::DoubleDouble::VERSION eq '1.07') {
   print "ok 2\n";
 }
 else {

@@ -261,6 +261,22 @@ void _NV2binary (pTHX_ SV * nv) {
   XSRETURN(returns);
 }
 
+void _calculate (pTHX_ SV * bin, SV * exponent) {
+  dXSARGS;
+  IV i, imax;
+  long double ret = 0L;
+  long double exp = (long double)SvNV(exponent);
+  imax = av_len((AV*)SvRV(bin));
+
+  for(i = 0; i <= imax; i++) {
+    if(SvIV(*(av_fetch((AV*)SvRV(bin), i, 0)))) ret += powl(2.0L, exp);
+    exp -= 1L;
+  }
+  ST(0) = sv_2mortal(newSVnv(ret));
+  ST(1) = sv_2mortal(newSVnv(exp));
+  XSRETURN(2);
+}
+
 
 MODULE = Data::Float::DoubleDouble  PACKAGE = Data::Float::DoubleDouble
 
@@ -383,6 +399,23 @@ _NV2binary (nv)
         PPCODE:
         temp = PL_markstack_ptr++;
         _NV2binary(aTHX_ nv);
+        if (PL_markstack_ptr != temp) {
+          /* truly void, because dXSARGS not invoked */
+          PL_markstack_ptr = temp;
+          XSRETURN_EMPTY; /* return empty stack */
+        }
+        /* must have used dXSARGS; list context implied */
+        return; /* assume stack size is correct */
+
+void
+_calculate (bin, exponent)
+	SV *	bin
+	SV *	exponent
+        PREINIT:
+        I32* temp;
+        PPCODE:
+        temp = PL_markstack_ptr++;
+        _calculate(aTHX_ bin, exponent);
         if (PL_markstack_ptr != temp) {
           /* truly void, because dXSARGS not invoked */
           PL_markstack_ptr = temp;

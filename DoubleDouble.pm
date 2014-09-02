@@ -17,7 +17,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
  DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN
- NV2H H2NV D2H H2D DD2HEX std_float_H
+ NV2H H2NV D2H H2D DD2HEX std_float_H LD2H H2LD
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
  float_H2B B2float_H standardise_bin_mant hex_float float_hex float_B B_float
  valid_hex valid_bin valid_unpack express NV2binary
@@ -29,7 +29,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  DD_LDBL_MIN_EXP DD_LDBL_MAX_EXP DD_LDBL_MIN_10_EXP DD_LDBL_MAX_10_EXP
  DD_LDBL_EPSILON DD_LDBL_DECIMAL_DIG DD_LDBL_HAS_SUBNORM DD_LDBL_TRUE_MIN
- NV2H H2NV D2H H2D DD2HEX std_float_H
+ NV2H H2NV D2H H2D DD2HEX std_float_H LD2H H2LD
  get_sign get_exp get_mant_H float_H H_float inter_zero are_inf are_nan
  float_H2B B2float_H standardise_bin_mant float_hex hex_float float_B B_float
  valid_hex valid_bin valid_unpack express NV2binary
@@ -50,7 +50,7 @@ $Data::Float::DoubleDouble::neg_eps = -(2 ** -1074);
 $Data::Float::DoubleDouble::max_fin =  H2NV('7fefffffffffffff7c8fffffffffffff');
 $Data::Float::DoubleDouble::min_fin = $Data::Float::DoubleDouble::max_fin * -1;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 #$VERSION = eval $VERSION;
 DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
@@ -70,7 +70,7 @@ DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
 sub NV2H {
 
-  return scalar reverse unpack "h*", pack "D<", $_[0];
+  return scalar reverse unpack "h*", pack "F<", $_[0];
 
 }
 
@@ -80,7 +80,7 @@ sub NV2H {
 
 sub H2NV {
 
-  return unpack "D<", pack "h*", scalar reverse $_[0];
+  return unpack "F<", pack "h*", scalar reverse $_[0];
 
 }
 
@@ -106,6 +106,28 @@ sub H2D {
 
 ##############################
 ##############################
+# A function to return the hex representation of a long double.
+# Works only if the NV is of type long double, whereupon it returns the same as NV2H().
+
+sub LD2H {
+
+  return scalar reverse unpack "h*", pack "D<", $_[0];
+
+}
+
+##############################
+##############################
+# A function to return a long double from the hex representation provided by LD2H().
+# works only if the NV is of type long double, whereupon it returns the same as H2NV().
+
+sub H2LD {
+
+  return unpack "D<", pack "h*", scalar reverse $_[0];
+
+}
+
+##############################
+##############################
 # A function to return the signs of the NV
 
 sub get_sign {
@@ -124,7 +146,7 @@ sub get_sign {
 
 sub get_exp {
 
-  my $hex = NV2H($_[0]);;
+  my $hex = NV2H($_[0]);
 
   my $exp1 = hex(substr($hex, 0, 3));
   my $exp2 = hex(substr($hex, 16, 3));
@@ -407,7 +429,8 @@ sub H_float {
 
   if(!$roundup) {
     my $s = $sign eq '-' ? -1.0 : 1.0;
-    my @d = _calculate($mant, $exp);
+    my @mant = split //, $mant;
+    my @d = _calculate(\@mant, $exp);
     if($d[0] == 0 && $sign eq '-') {
       # return -ve zero ... but "return -0.0;" might not work,
       # on all perls so we do it this way:
@@ -432,9 +455,12 @@ sub H_float {
 
     $m = substr($m, 53) unless $overflow;
 
-    my ($d1, $exponent) = _calculate($d1_bin, $exp);
+    my @d1_bin = split //, $d1_bin;
+    my @m = split //, $m;
+
+    my ($d1, $exponent) = _calculate(\@d1_bin, $exp);
     $exponent = $overflow_exp if $overflow;
-    my ($d2, $discard) = _calculate($m, $exponent);
+    my ($d2, $discard) = _calculate(\@m, $exponent);
 
     if($d1 - $d2 == 0 && $sign eq '-') {
       # return -ve zero ... but "return -0.0;" might not work
@@ -869,23 +895,24 @@ sub _hex2bin {
 
 ##############################
 ##############################
+# Moved to an XSub of the same name.
 # Calculate the value of the double-double using the
 # base 2 representation. (Used by H_float.)
 
-sub _calculate {
-    my $bin = $_[0];
-    my $exp = $_[1];
-    my $ret = 0;
-
-    my $binlen = length($bin) - 1;
-
-    for my $pos(0 .. $binlen) {
-      $ret += substr($bin, $pos, 1) ? 2 ** $exp : 0;
-      $exp--;
-    }
-
-    return ($ret, $exp);
-}
+#sub _calculate {
+#    my $bin = $_[0];
+#    my $exp = $_[1];
+#    my $ret = 0;
+#
+#    my $binlen = length($bin) - 1;
+#
+#    for my $pos(0 .. $binlen) {
+#      $ret += substr($bin, $pos, 1) ? 2 ** $exp : 0;
+#      $exp--;
+#    }
+#
+#    return ($ret, $exp);
+#}
 
 ##############################
 ##############################
