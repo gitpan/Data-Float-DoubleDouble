@@ -16,9 +16,13 @@ if($Config::Config{nvtype} ne 'long double' && !$no_die) {
   exit 0;
 }
 
+my $defines;
+$Config::Config{byteorder} =~ /^1234/ ? $defines = "-DWE_HAVE_LENDIAN"
+                                      : $defines = "-DWE_HAVE_BENDIAN";
+
+# Check that we have DoubleDouble.
 my $nv1 = 1.0;
 my $nv2 = $nv1 + (2 ** -1000);
-
 if($nv1 == $nv2 && !$no_die) {
   warn "  This module is not usable with this architecture's long double\n",
        "  It requires that the long double type is a 'double-double'\n";
@@ -28,6 +32,7 @@ if($nv1 == $nv2 && !$no_die) {
 my %h = (
   NAME => 'Data::Float::DoubleDouble',
   VERSION_FROM => 'DoubleDouble.pm',
+  DEFINE => $defines,
   PREREQ_PM => {'Math::NV' => '0.02'},
   LIBS => ['-lm'],
   LICENSE  => 'perl',

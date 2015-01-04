@@ -6,7 +6,6 @@ DoubleDouble.xs
 t/01_load.t
 t/02_str2mpfr_cross_checks.t
 t/03_next.t
-t/04_validate.t
 t/05_DD.t
 t/06_DD2HEX.t
 t/07_nv2mpfr_cross_checks.t
@@ -18,6 +17,7 @@ t/16_inf_nan_zero.t
 t/17_float_class.t
 t/20_H_float.t
 t/21_H_float_roundup.t
+t/22_dd_bytes.t
 README
 META.yml                                 Module YAML meta-data (added by MakeMaker)
 META.json                                Module JSON meta-data (added by MakeMaker)

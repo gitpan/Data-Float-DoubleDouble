@@ -22,7 +22,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  float_H2B B2float_H standardise_bin_mant hex_float float_hex float_B B_float
  valid_hex valid_bin valid_unpack express NV2binary
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
- float_is_normal float_is_subnormal float_class
+ float_is_normal float_is_subnormal float_class dd_bytes
  nextafter nextup nextdown);
 
 %Data::Float::DoubleDouble::EXPORT_TAGS = (all =>[qw(
@@ -34,7 +34,7 @@ use subs qw(DD_FLT_RADIX DD_LDBL_MAX DD_LDBL_MIN DD_LDBL_DIG DD_LDBL_MANT_DIG
  float_H2B B2float_H standardise_bin_mant float_hex hex_float float_B B_float
  valid_hex valid_bin valid_unpack express NV2binary
  float_is_infinite float_is_nan float_is_finite float_is_zero float_is_nzfinite
- float_is_normal float_is_subnormal float_class
+ float_is_normal float_is_subnormal float_class dd_bytes
  nextafter nextup nextdown)]);
 
 # Maximum finite ($max_fin) is actually:
@@ -50,7 +50,7 @@ $Data::Float::DoubleDouble::neg_eps = -(2 ** -1074);
 $Data::Float::DoubleDouble::max_fin =  H2NV('7fefffffffffffff7c8fffffffffffff');
 $Data::Float::DoubleDouble::min_fin = $Data::Float::DoubleDouble::max_fin * -1;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 #$VERSION = eval $VERSION;
 DynaLoader::bootstrap Data::Float::DoubleDouble $VERSION;
 
@@ -301,8 +301,7 @@ sub NV2binary {
 
 ##############################
 ##############################
-# Return the NV from the binary pepresentation (sign, mantissa, exponent).
-# Optionally takes a 4th arg of 'raw'.
+# Return the NV from the binary representation (sign, mantissa, exponent).
 
 sub B_float {
   die "Wrong number of args to B_float (", scalar @_, ")"
@@ -580,7 +579,7 @@ sub inter_zero {
 
 ##############################
 ##############################
-# Return true iff the argument is infinite.
+# Return true iff at least one argument is infinite.
 
 sub are_inf {
 
@@ -596,7 +595,7 @@ sub are_inf {
 
 ##############################
 ##############################
-# Return true iff the argument is a NaN.
+# Return true iff at least one argument is a NaN.
 
 sub are_nan {
 
@@ -606,172 +605,6 @@ sub are_nan {
 
   return 1;
 
-}
-
-##############################
-##############################
-# Checks and returns a validated hex format - such as that returned bt float_H.
-# Dies if it can't validate the supplied argument.
-# Unless $die is set, it will make some simple adjustments
-
-sub valid_hex {
-
-  die "valid_hex() expects either 1 or 2 (not ", scalar @_, ") args"
-    if(!@_ || @_ > 2);
-
-  my $hex = $_[0];
-  my $die = defined $_[1] ? $_[1] : 0;
-
-  unless($hex =~ /[\-\+]/) {
-    die "No leading sign" if $die;
-    $hex = '+' . $hex; # Just fix it if !$die
-  }
-
-  return $hex if($hex eq '+inf' || $hex eq '-inf' || $hex eq '+nan' || $hex eq '-nan');
-
-  my $sign = substr($hex, 0, 1);
-
-  my $prefix = substr($hex, 1, 4);
-
-  # Here we die irrespective of $die
-  die "Unrecognized prefix" if($prefix ne '0x1.' &&
-                               $prefix ne '0x0.');
-
-  my(@val) = split /p/, $hex;
-
-  die "Invalid string ($hex)" if @val != 2;
-  my($mant, $exp) = @val;
-  die "Invalid exponent ($exp)" if $exp =~ /[^\-\+\d]/;
-
-  $mant = substr($mant, 5);
-  die "Invalid mantissa $mant)" if $mant =~ /[^\dA-Fa-f]/;
-  if(length($mant) < 27) {
-    die "Mantissa is too small ($mant)" if $die;
-    $mant .= '0' while length $mant < 27;
-  }
-  if(length($mant) > 526) {
-    die "Mantissa is too large (", length($mant), " chars)"
-      if $die;
-    my $bin = Data::Float::DoubleDouble::_hex2bin($mant);
-    my @trunc = Data::Float::DoubleDouble::_trunc_rnd($bin, 2104);
-    $bin = $trunc[0];
-    $mant = Data::Float::DoubleDouble::_bin2hex($mant);
-  }
-
-  if($exp >= 1024) {
-    die "Exponent too large ($exp)"
-      if $exp > 1024;
-
-    die "Invalid inf/nan format"
-      unless($_[0] eq '+0x1.000000000000000000000000000p1024'
-             ||
-             $_[0] eq '-0x1.000000000000000000000000000p1024'
-             ||
-             $_[0] eq  '0x1.000000000000000000000000000p1024'
-             ||
-             $_[0] eq '+0x1.800000000000000000000000000p1024'
-             ||
-             $_[0] eq '-0x1.800000000000000000000000000p1024'
-             ||
-             $_[0] eq  '0x1.800000000000000000000000000p1024');
-    $_[0] =~ /^0x/ ? return '+' . $_[0]
-                   : return $_[0];
-  }
-
-  if(($mant !~ /[^0]/ && $prefix =~ /0\.$/) || $exp < -1074) {
-    my $ret = $sign eq '-'
-      ? '-0x0.000000000000000000000000000p-1022'
-      : '+0x0.000000000000000000000000000p-1022';
-    die "Wanting to return a different zero format"
-      if( $die &&  $_[0] ne $ret);
-    return $ret;
-  }
-
-  return $sign . $prefix . $mant . 'p' . $exp;
-
-}
-
-
-##############################
-# Verify that the given argument is a valid 'unpack' format - such as
-# retured by NV2H. That is, check that it consists only of valid hex
-# characters and that there are 32 of them.
-# If there's less than 32 of them, either die (if $die is set) or
-# append zeroes until the length is 32 (if $die is not set).
-
-sub valid_unpack {
-
-  die "valid_unpack() expects either 1 or 2 (not ", scalar @_, ") args"
-    if(!@_ || @_ > 2);
-
-  my $unpack = $_[0];
-  my $die = defined $_[1] ? $_[1] : 0;
-
-  my $len = length($_[0]);
-
-  die "Empty string passed to valid_unpack()"
-    unless $len;
-  die "Length ($len) of string passed to valid_unpack() must be no more than 32"
-    if $len > 32;
-  die "Invalid hex chars passed to valid_unpack()"
-    if $_[0] =~ /[^0-9A-Fa-f]/;
-  die if (length($_[0]) < 32 && $die);
-  $unpack .= '0' while length($unpack) < 32;
-  return $unpack;
-}
-
-##############################
-# Checks and returns a validated binary format (sign, mantissa, exponent) - such
-# as that returned by float_B().
-# Dies if it can't validate the supplied arguments.
-# Unless $die is set, it will make some simple adjustments
-
-sub valid_bin {
-  my($sign, $mant, $exp, $die) = @_;
-  if($sign !~ /[\-\+]/ || $sign =~ /[^\-\+]/) {
-    die "Invalid sign ($sign)" if ($die || $sign ne '');
-    $sign = '+'; # Just fix the empty string if !$die
-  }
-
-  if(($mant eq 'inf' || $mant eq 'nan') && $exp == 1024) {
-    return ($sign, $mant, $exp);
-  }
-
-  die "Invalid mantissa $mant)" if $mant =~ /[^01]/;
-  if(length($mant) < 108) {
-    die "Mantissa is too small ($mant)" if $die;
-    $mant .= '0' while length $mant < 108;
-  }
-  if(length($mant) > 2104) {
-    die "Mantissa is too large (", length($mant), " chars)"
-      if $die;
-    my @trunc = Data::Float::DoubleDouble::_trunc_rnd($mant, 2104);
-
-    $mant = $trunc[0];
-  }
-
-  die "Invalid exponent ($exp)"
-   if $exp =~ /[^\-\+\d]/;
-
-  if($exp >= 1024) {
-    die "Exponent too large ($exp)"
-      if $exp > 1024;
-
-    die "Invalid inf/nan format"
-    unless($_[1] eq '1' . '0' x 107
-           ||
-           $_[1] eq '11' . '0' x 106);
-  }
-
-  if($exp < -1074) {
-    die "Exponent too small ($exp)" if $die;
-    my @ret = ($sign, '0' x 108, -1022);
-    die "Wanting to return a different zero format "
-      if($die && ($ret[1] ne $_[1] || $ret[2] ne $_[2]));
-    return @ret;
-  }
-
-  return ($sign, $mant, $exp);
 }
 
 ##############################
@@ -1012,7 +845,7 @@ sub express {
                        : @_ == 1 ? 0
                                  : undef;
 
-  die "Bad arg(s) supplied to express()" unless defined $do_hex;
+  die "Bad arg(s) supplied to express(): @_" unless defined $do_hex;
 
   my($ret1, $ret2);
   my($m1, $m2, $m3) = ('0+e', '\.e', 'e');
@@ -1047,6 +880,14 @@ sub express {
   return $ret;
 }
 
+##############################
+##############################
+# Returns same as NV2H()
+
+sub dd_bytes {
+  my @ret = _dd_bytes($_[0]);
+  return join '', @ret;
+}
 
 ##############################
 ##############################
@@ -1195,8 +1036,8 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
 =head1 AIM
 
   Mostly, one would use Data::Float to do what this module does.
-  But that module doesn't work with the powerpc long double,
-  which uses a 'double-double' arrangement ... hence, this module.
+  But that module doesn't work with the 'double-double' type of
+  long double ... hence, this module.
 
   Given a double-double value, we aim to be able to:
    1) Convert that NV to its internal packed hex form;
@@ -1341,7 +1182,8 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
    Express the double as msd + lsd, where the 2 doubles (msd and lsd)
    are written in scientic notation. The doubles will be written in
    decimal format unless a second arg of 'h' or 'H' is provided - in
-   which case they will be written in hex format.
+   which case they will be written in hex (respectively capitalised
+   hex) format.
    The second arg ($opt), if provided, must be either 'h' or 'H'.
 
   #############################################
@@ -1350,7 +1192,9 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
 
    For $hex written in the format returned by float_H(), returns
    the NV that corresponds to $hex.
+
   #############################################
+
   @bin = float_B($nv, $opt); # Second arg isoptional
 
    Returns the sign, the mantissa (as a base 2 string), and the
@@ -1445,52 +1289,9 @@ Data::Float::DoubleDouble -  human-readable representation of the "double-double
 
   #############################################
 
-  $hex = valid_unpack($string [,$die]); # 2nd arg optional
+  $hex = dd_bytes($nv);
 
-   Verify that the 1st arg is a valid 'unpack' format - such as
-   retured by NV2H.
-   Die if it's an empty string.
-   Die if it has a length greater than 32.
-   Check that it consists only of valid hex characters and that
-   there are 32 of them.
-   If it consists solely of hex characters but there's less than
-   32 of them, either die (if $die is set) or append zeroes until
-   the length is 32 (if $die is not set).
-   If the string was modified, return that modified string - else
-   return the 1st arg.
-
-  #############################################
-
-  @bin = valid_bin($sign, $mantissa, $exponent [,$die]);
-
-   Checks and returns a validated binary format (sign,
-   mantissa, exponent) - such as that returned by float_B().
-   Dies if it can't validate the supplied arguments.
-   If exponent is 1024, the sub will die unless mantissa matches
-   the format for an inf or a nan.
-   Dies if exponent > 1024.
-   Returns 0 if exponent <= -1075 (unless $die is set &&
-   mantissa =~ /1/ - in which case it dies.)
-   Unless $die is set, it will make some simple modifications
-   if needed:
-    1) Set $sign to '+' if it's the empty string;
-    2) Append zeroes to $mantissa if there are too few
-       characters.
-   Return $sign, $mantissa, $exponent.
-
-  #############################################
-
-  $hex = valid_hex($float_string [,$die]);
-
-   Checks and returns a validated hex format - such as that
-   returned by float_H. Dies if it can't validate the supplied
-   argument.
-   Unless $die is set, it will make some simple modifications
-   if needed:
-    1) Prepend a '+' sign if no sign is present;
-    2) Append zeroes if there are too few characters.
-   If the string was modified, return that modified string - else
-   return the 1st arg.
+   Returns same as NV2H($nv).
 
   #############################################
 

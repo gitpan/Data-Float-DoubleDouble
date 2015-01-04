@@ -1,5 +1,9 @@
 Revision history for Perl module Data::Float::DoubleDouble
 
+1.08
+   - Add dd_bytes function.
+   - Remove valid_hex, valid_bin, valid_unpack - silly ideas in the first place
+
 1.07
    - Change template for NV2H() and H2NV() from "D<" to "F<", and provide LD2H() and
      H2LD() - which use the "D<" template.
